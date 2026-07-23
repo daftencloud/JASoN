@@ -44,7 +44,9 @@ EXPECTED_STRONGEST_SENSOR = {
     "two_arm_boxing": ["imu", "mmwave"],
     "t_arm": ["uwb", "mmwave"],
     "raise_arms": ["imu", "mmwave"],
-    "soli": ["rfid", "mmwave"],
+    "soli": ["mmwave"],  # originally hypothesized rfid+mmwave, but RFID
+                          # wasn't reliable enough to use for this gesture
+                          # in practice -- relying on mmwave alone instead
     "open_close_fist": ["rfid"],
     "palm_up_down": ["mmwave", "imu"],
 }
