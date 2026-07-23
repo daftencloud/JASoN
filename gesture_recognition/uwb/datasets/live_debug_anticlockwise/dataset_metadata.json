@@ -1,0 +1,21 @@
+{
+  "channel": 5,
+  "collection_mode": "continuous_session_segmented_trials",
+  "collector": "akshat",
+  "created_at": "2026-07-23 13:21:57",
+  "dataset_name": "live_debug_anticlockwise",
+  "fps": 50.0,
+  "gestures": [
+    "anticlockwise"
+  ],
+  "group_id": 1,
+  "input_type": "range",
+  "pause_s": 2.0,
+  "preamble_code": 9,
+  "ranging_span_ms": 20,
+  "session_duration_s": 3600,
+  "slot_span": 2400,
+  "slots_per_rr": 6,
+  "trial_duration_s": 3.0,
+  "trials_per_gesture": 1
+}

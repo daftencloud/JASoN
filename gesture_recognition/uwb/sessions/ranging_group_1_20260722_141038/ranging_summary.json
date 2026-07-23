@@ -1,0 +1,21 @@
+{
+  "controlee": {
+    "max_cm": null,
+    "mean_cm": null,
+    "median_cm": null,
+    "min_cm": null,
+    "ok_samples": 0,
+    "total_samples": 0
+  },
+  "controlee_return_code": 1,
+  "controller": {
+    "max_cm": null,
+    "mean_cm": null,
+    "median_cm": null,
+    "min_cm": null,
+    "ok_samples": 0,
+    "total_samples": 0
+  },
+  "controller_return_code": 1,
+  "finished_at": "2026-07-22 14:10:43"
+}

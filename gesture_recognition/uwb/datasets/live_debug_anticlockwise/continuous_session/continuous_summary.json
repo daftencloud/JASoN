@@ -1,0 +1,25 @@
+{
+  "chunks": [
+    {
+      "chunk_index": 1,
+      "continuous_dir": "C:\\Users\\aksha\\UWB_lab\\datasets\\live_debug_anticlockwise\\continuous_session\\chunk_001",
+      "controlee_log": "C:\\Users\\aksha\\UWB_lab\\datasets\\live_debug_anticlockwise\\continuous_session\\chunk_001\\controlee\\controlee_terminal_log.txt",
+      "controller_log": "C:\\Users\\aksha\\UWB_lab\\datasets\\live_debug_anticlockwise\\continuous_session\\chunk_001\\controller\\controller_terminal_log.txt",
+      "reason": "initial",
+      "started_at": "2026-07-23 13:22:03"
+    }
+  ],
+  "controlee_return_code": null,
+  "controller": {
+    "max_cm": 128.0,
+    "mean_cm": 39.23196448390677,
+    "median_cm": 27.0,
+    "min_cm": 1.0,
+    "ok_samples": 1802,
+    "total_samples": 1822
+  },
+  "controller_return_code": null,
+  "finished_at": "2026-07-23 13:22:43",
+  "interrupted": false,
+  "stream_restarts": 0
+}
