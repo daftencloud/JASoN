@@ -7,6 +7,7 @@ so the label set never drifts between files.
 """
 
 GESTURES = [
+    "rest",
     "pull",
     "push",
     "clockwise",
