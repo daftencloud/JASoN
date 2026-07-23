@@ -58,11 +58,20 @@ class BaseSensorReader(ABC):
 
     def readline_raw(self) -> str:
         """
-        Helper for line-based protocols (IMU, WiFi CSI): reads one
-        available line, or returns "" if nothing is waiting. Not used
-        by binary-protocol readers (mmWave, RFID, UWB).
+        Helper for line-based protocols (IMU, WiFi CSI): attempts to
+        read one line using the port's own read timeout, returning ""
+        if nothing arrived in time.
+
+        NOTE: this deliberately does NOT gate on `self._ser.in_waiting`
+        first. Some USB-serial chip drivers (notably certain WCH/CH340
+        drivers on macOS) report in_waiting as always 0 even while
+        real data is actively streaming -- gating on it silently
+        starves the reader of data forever. A direct readline() call
+        respects the port's configured timeout (set in connect()) and
+        works correctly regardless of whether in_waiting is reliable
+        on a given driver.
         """
-        if self._ser is None or not self._ser.in_waiting:
+        if self._ser is None:
             return ""
         line = self._ser.readline().decode(errors="ignore").strip()
         return line
