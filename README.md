@@ -1,30 +1,33 @@
-# Final Project: Multimodal Gesture Recognition
+# Final Project - Multimodal Gesture Recognition
 
-End-to-end IoT + data science system: collect real sensor data across
-5 sensing modalities, build a machine learning pipeline, and
-demonstrate gesture recognition across all 15 gestures.
+For my COSMOS Cluster 10 final project I built a gesture recognition system that uses 5 different sensors (IMU, UWB, mmWave radar, WiFi CSI, and RFID) to recognize 15 different hand/arm gestures. Everything is in Python except for one tiny firmware file that just streams raw IMU data over serial (can't avoid that part since the sensor chip needs something to actually read it).
 
-## Hardware
+## The idea
 
-| Sensor | Board | Role |
-|---|---|---|
-| IMU | ESP32 / M5Core2 (6-axis) | Wrist-worn motion |
-| UWB | 3x DWM3001C | 2 fixed anchors + 1 wrist tag, ranging |
-| mmWave | TI IWRL6432FSPEVM | Point-cloud / Doppler, table-mounted near hand |
-| WiFi CSI | ESP32-CAM + ESP32-C3 (+ a 3rd board for SoftAP) | Channel state info |
-| RFID | SparkFun M7E Hecto (ThingMagic) | Tags on thumb + 2-3 fingers |
+Instead of picking one sensor and hoping it works for every gesture, I used multiple sensors and let the data decide which ones actually matter for which gestures. Some gestures (like a fist closing) are obviously better suited for RFID tags on your fingers, while others (like a full arm swing) make way more sense for the IMU or UWB. So I collect from everything at once and compare single-sensor models against a fused model to see if combining them actually helps.
 
-## Gestures (15 total)
+## Hardware I'm using
 
-See `src/gestures.py` for the canonical list: Pull, Push, Clockwise,
-Counterclockwise, Left, Right, Bye-bye, One-arm boxing, Clapping,
-Two-arm boxing, T-arm, Raise arms, Soli, Open/close fist, Palm up/down.
+- IMU: ESP32 / M5Core2 (6-axis, wrist)
+- UWB: 3x DWM3001C (2 anchors + 1 tag on the wrist)
+- mmWave: TI IWRL6432FSPEVM, mounted near the hand
+- WiFi CSI: ESP32-CAM + ESP32-C3 (from the earlier wifi lab)
+- RFID: SparkFun M7E Hecto reader, tags taped to my fingers
 
-`gestures.py` also has an `EXPECTED_STRONGEST_SENSOR` table -- our
-hypothesis for which sensor should be most useful per gesture. This is
-something to **test** in `evaluate.py`, not a restriction: `collect.py`
-records every active sensor for every gesture regardless, so one fused
-model can be trained across the full gesture set.
+## The 15 gestures
+
+Pull, push, clockwise, counterclockwise, left, right, bye-bye, one-arm boxing, clapping, two-arm boxing, T-arm, raise arms, soli, open/close fist, palm up/down. Full list is in `src/gestures.py`.
+
+## How the pipeline works
+
+```
+collect.py           -> record one gesture trial at a time, all sensors that are plugged in
+combine_datasets.py   -> merges everything into one manifest
+extract_features.py   -> turns raw sensor data into ML features per sensor + fused
+train.py              -> trains KNN and Random Forest on each feature set
+evaluate.py            -> compares them, does held-out-person testing, makes confusion matrices
+realtime_demo.py       -> live gesture prediction using whatever model I pick
+```
 
 ## Setup
 
@@ -32,95 +35,46 @@ model can be trained across the full gesture set.
 pip install -r requirements.txt --break-system-packages
 ```
 
-## Pipeline
+## How I actually run it
 
+Collecting data (only pass ports for whatever's plugged in that session):
 ```
-src/collect.py            # record one labeled trial at a time, all active sensors
-       |
-       v
-data/raw/<gesture>/<person>_<trial>_<sensor>.csv
-       |
-       v
-src/combine_datasets.py   # build data/processed/trial_manifest.csv
-       |
-       v
-src/extract_features.py   # -> data/processed/features_{imu,uwb,mmwave,wifi,rfid,fused}.csv
-       |
-       v
-src/train.py               # -> models/{feature_set}_{knn,random_forest}.pkl
-       |
-       v
-src/evaluate.py            # -> results/model_comparison.csv, results/figures/*.png
-       |
-       v
-src/realtime_demo.py       # live prediction using a trained model
+python src/collect.py --person sai --gesture push --duration 2.5 \
+    --imu-port /dev/tty.usbserial-XXXX \
+    --rfid-port /dev/tty.wchusbserial110
 ```
 
-### 1. Collect data
-
-```
-python src/collect.py --person alex --gesture push --duration 2.5 \
-    --imu-port /dev/tty.usbserial-AAA \
-    --uwb-port /dev/tty.usbserial-BBB \
-    --mmwave-port /dev/tty.usbserial-CCC \
-    --rfid-port /dev/tty.usbserial-DDD \
-    --rfid-tags THUMB_EPC,INDEX_EPC,MIDDLE_EPC,RING_EPC
-```
-
-Only pass the ports you actually have connected. Repeat for every
-gesture x every group member, aiming for a balanced trial count (20-30
-per gesture to start). Start with 4-6 gestures your group can collect
-reliably, then expand -- see the lab handout's "practical strategy" note.
-
-### 2. Combine + extract features
-
+Then once I've got a bunch of trials collected:
 ```
 python src/combine_datasets.py
 python src/extract_features.py
-```
-
-### 3. Train + evaluate
-
-```
 python src/train.py
 python src/evaluate.py
 ```
 
-`evaluate.py` reports, per feature set (imu-only, uwb-only, mmwave-only,
-wifi-only, rfid-only, and fused) x model (KNN, Random Forest):
-random-split accuracy and held-out-person accuracy, and tells you
-whether fusion beat the best single sensor. Confusion matrices land in
-`results/figures/`.
+`evaluate.py` spits out accuracy per sensor and tells me if fusing all the sensors together actually beat the best single sensor, plus confusion matrices land in `results/figures/`.
 
-### 4. Live demo
-
+Live demo once I have a trained model:
 ```
-python src/realtime_demo.py --model models/fused_random_forest.pkl \
-    --imu-port /dev/tty.usbserial-AAA --uwb-port /dev/tty.usbserial-BBB
+python src/realtime_demo.py --model models/fused_random_forest.pkl --imu-port /dev/tty.usbserial-XXXX
 ```
 
-## What I need from you to finish two sensor readers
+## Debug scripts
 
-Everything is implemented and real EXCEPT two clearly-marked gaps:
+Since getting each sensor talking correctly over serial turned out to be its own whole thing, I've got standalone test scripts for when something's not working:
+- `src/test_all_sensors.py` - quick check across everything at once
+- `src/test_rfid.py` / `src/test_rfid_raw.py` - RFID debugging
+- `src/test_uwb_raw.py` - UWB debugging
+- `src/test_mmwave_raw.py` - mmWave debugging
 
-1. **`src/sensors/uwb_reader.py`** -- your DWM3001C's exact shell output
-   format is still unconfirmed. Connect one module directly via USB,
-   open a serial terminal at 115200 baud, power the anchors, and send
-   me what you see -- I'll fill in the real parsing.
-2. **`src/sensors/rfid_reader.py`** -- implements the real
-   ThingMagic/Mercury binary protocol directly in Python, but I'm not
-   100% certain of the exact response byte offsets for your module/
-   firmware version. Cross-check against SparkFun's open-source library
-   source (`SparkFun_UHF_RFID_Reader.cpp` on GitHub) if reads come back
-   garbled, and let me know what you find so I can correct it.
+## Where I'm at right now
 
-Everything else (`imu_reader.py`, `mmwave_reader.py`, `wifi_reader.py`,
-and the entire `collect.py` -> `evaluate.py` pipeline) is complete,
-real code.
+- IMU: working, firmware is in `firmware/imu_streaming/`
+- WiFi: working, reuses the sniffer setup from the earlier CSI lab
+- mmWave: code's written, still need to confirm the baud rate / port against the real board
+- RFID: still debugging - reader connects fine but isn't responding to commands yet
+- UWB: still debugging - trying to figure out the right port on the DWM3001C boards (might be plugged into the debug port instead of the actual application port)
 
-## Note on data/models in git
+## Note on data/models
 
-`.gitignore` currently excludes raw/processed CSVs and trained `.pkl`
-models (they can get large, and shouldn't usually live in git). If
-your TA wants the actual dataset/models committed for grading, remove
-those lines from `.gitignore` before your first commit.
+`.gitignore` currently keeps the raw data and trained models out of git since they can get big - just removing those lines if I end up wanting to commit the actual dataset for grading.
