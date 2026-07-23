@@ -135,6 +135,16 @@ class MmwaveReader(BaseSensorReader):
         self.cfg_path = cfg_path
         self._buffer = bytearray()
 
+    def close(self):
+        if self.is_connected:
+            try:
+                self._ser.write(b'sensorStop 0\n')
+                self._ser.flush()
+                time.sleep(0.2)
+            except Exception:
+                pass
+        super().close()
+
     def connect(self):
         """
         Opens the port and runs the CLI configuration handshake before
@@ -144,6 +154,13 @@ class MmwaveReader(BaseSensorReader):
         """
         super().connect()  # opens self._ser at self.baud
         time.sleep(0.5)
+
+        # Defensive: if the radar was left mid-stream from a previous
+        # trial, force it back to idle before configuring.
+        self._ser.write(b'sensorStop 0\n')
+        self._ser.flush()
+        time.sleep(0.3)
+        self._ser.reset_input_buffer()
 
         commands = _load_configuration(self.cfg_path)
         start_command = None
