@@ -1,0 +1,25 @@
+{
+  "chunks": [
+    {
+      "chunk_index": 1,
+      "continuous_dir": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\continuous_session\\chunk_001",
+      "controlee_log": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\continuous_session\\chunk_001\\controlee\\controlee_terminal_log.txt",
+      "controller_log": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\continuous_session\\chunk_001\\controller\\controller_terminal_log.txt",
+      "reason": "initial",
+      "started_at": "2026-07-23 12:57:45"
+    }
+  ],
+  "controlee_return_code": null,
+  "controller": {
+    "max_cm": 223.0,
+    "mean_cm": 70.10077519379846,
+    "median_cm": 61.0,
+    "min_cm": 2.0,
+    "ok_samples": 18705,
+    "total_samples": 18710
+  },
+  "controller_return_code": null,
+  "finished_at": "2026-07-23 13:04:03",
+  "interrupted": false,
+  "stream_restarts": 0
+}

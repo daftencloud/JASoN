@@ -1,0 +1,432 @@
+{
+  "classes": [
+    "anticlockwise",
+    "clapping",
+    "clockwise",
+    "t_arms",
+    "two_arm_boxing"
+  ],
+  "classifier": "random_forest",
+  "classifier_params": {
+    "class_weight": "balanced_subsample",
+    "max_features": "sqrt",
+    "min_samples_leaf": 1,
+    "n_estimators": 500,
+    "n_jobs": -1,
+    "random_state": 42
+  },
+  "created_at": "2026-07-23T13:07:45",
+  "feature_names": [
+    "mean_cm",
+    "std_cm",
+    "min_cm",
+    "max_cm",
+    "median_cm",
+    "q25_cm",
+    "q75_cm",
+    "range_cm",
+    "start_cm",
+    "end_cm",
+    "end_minus_start_cm",
+    "mean_abs_velocity",
+    "max_abs_velocity",
+    "velocity_std",
+    "total_movement_cm",
+    "direction_changes",
+    "shape_000",
+    "shape_001",
+    "shape_002",
+    "shape_003",
+    "shape_004",
+    "shape_005",
+    "shape_006",
+    "shape_007",
+    "shape_008",
+    "shape_009",
+    "shape_010",
+    "shape_011",
+    "shape_012",
+    "shape_013",
+    "shape_014",
+    "shape_015",
+    "shape_016",
+    "shape_017",
+    "shape_018",
+    "shape_019",
+    "shape_020",
+    "shape_021",
+    "shape_022",
+    "shape_023",
+    "shape_024",
+    "shape_025",
+    "shape_026",
+    "shape_027",
+    "shape_028",
+    "shape_029",
+    "shape_030",
+    "shape_031",
+    "shape_032",
+    "shape_033",
+    "shape_034",
+    "shape_035",
+    "shape_036",
+    "shape_037",
+    "shape_038",
+    "shape_039",
+    "shape_040",
+    "shape_041",
+    "shape_042",
+    "shape_043",
+    "shape_044",
+    "shape_045",
+    "shape_046",
+    "shape_047",
+    "shape_048",
+    "shape_049",
+    "shape_050",
+    "shape_051",
+    "shape_052",
+    "shape_053",
+    "shape_054",
+    "shape_055",
+    "shape_056",
+    "shape_057",
+    "shape_058",
+    "shape_059",
+    "close_fraction",
+    "linear_slope",
+    "trend_r2",
+    "first_last_third_delta",
+    "increasing_fraction",
+    "decreasing_fraction",
+    "valley_count",
+    "mean_valley_prominence",
+    "max_valley_prominence",
+    "mean_valley_interval_s",
+    "valley_interval_cv",
+    "dominant_frequency_hz",
+    "spectral_concentration",
+    "autocorrelation_peak",
+    "autocorrelation_peak_lag_s"
+  ],
+  "feature_params": {
+    "close_threshold_cm": 25.0,
+    "feature_fs": 50.0,
+    "mad_z": 5.0,
+    "max_distance_cm": 1000.0,
+    "resample_points": 60
+  },
+  "feature_set": "proposal",
+  "metrics": {
+    "accuracy": 0.95,
+    "balanced_accuracy": 0.95,
+    "classification_report": {
+      "accuracy": 0.95,
+      "anticlockwise": {
+        "f1-score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4.0
+      },
+      "clapping": {
+        "f1-score": 0.8888888888888888,
+        "precision": 0.8,
+        "recall": 1.0,
+        "support": 4.0
+      },
+      "clockwise": {
+        "f1-score": 0.8571428571428571,
+        "precision": 1.0,
+        "recall": 0.75,
+        "support": 4.0
+      },
+      "macro avg": {
+        "f1-score": 0.9492063492063492,
+        "precision": 0.96,
+        "recall": 0.95,
+        "support": 20.0
+      },
+      "t_arms": {
+        "f1-score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4.0
+      },
+      "two_arm_boxing": {
+        "f1-score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "support": 4.0
+      },
+      "weighted avg": {
+        "f1-score": 0.9492063492063492,
+        "precision": 0.96,
+        "recall": 0.95,
+        "support": 20.0
+      }
+    },
+    "confusion_matrix": [
+      [
+        4,
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        4,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        1,
+        3,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        4,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0,
+        4
+      ]
+    ],
+    "labels": [
+      "anticlockwise",
+      "clapping",
+      "clockwise",
+      "t_arms",
+      "two_arm_boxing"
+    ]
+  },
+  "side": "controller",
+  "skipped_trials": [
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_001"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_002"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_003"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_004"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_005"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_006"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_007"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_008"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_009"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_010"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_011"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_012"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_013"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_014"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_015"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_016"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_017"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_018"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_019"
+    },
+    {
+      "gesture": "clockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_clockwise_trial_020"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_001"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_002"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_003"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_004"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_005"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_006"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_007"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_008"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_009"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_010"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_011"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_012"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_013"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_014"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_015"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_016"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_017"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_018"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_019"
+    },
+    {
+      "gesture": "anticlockwise",
+      "reason": "missing range CSV",
+      "session": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_rotation_boost\\sessions\\range_akshat_anticlockwise_trial_020"
+    }
+  ],
+  "split": {
+    "test_size": 0.2,
+    "type": "stratified_random"
+  },
+  "test_trial_count": 20,
+  "training_datasets": [
+    "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_five_gestures"
+  ],
+  "training_trial_count": 80,
+  "usable_trials_by_gesture": {
+    "anticlockwise": 20,
+    "clapping": 20,
+    "clockwise": 20,
+    "t_arms": 20,
+    "two_arm_boxing": 20
+  }
+}

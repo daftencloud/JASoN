@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "C:\Users\aksha\UWB_lab\uwb-qorvo-tools\scripts\fira\run_fira_twr\run_fira_twr.py", line 20, in <module>
+    from uci import *
+  File "C:\Users\aksha\UWB_lab\uwb-qorvo-tools\lib\uwb-uci\uci\__init__.py", line 11, in <module>
+    from .qorvo import *
+  File "C:\Users\aksha\UWB_lab\uwb-qorvo-tools\lib\uwb-uci\uci\qorvo.py", line 9, in <module>
+    from . import qorvo_msg
+  File "C:\Users\aksha\UWB_lab\uwb-qorvo-tools\lib\uwb-uci\uci\qorvo_msg.py", line 1481, in <module>
+    uci_codecs[(MT.Command, Gid.Qorvo, i)] = default_codec(i.name)
+                            ^^^^^^^^^
+AttributeError: type object 'Gid' has no attribute 'Qorvo'

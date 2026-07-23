@@ -1,0 +1,33 @@
+{
+  "chunks": [
+    {
+      "chunk_index": 1,
+      "continuous_dir": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_five_gestures\\continuous_session\\chunk_001",
+      "controlee_log": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_five_gestures\\continuous_session\\chunk_001\\controlee\\controlee_terminal_log.txt",
+      "controller_log": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_five_gestures\\continuous_session\\chunk_001\\controller\\controller_terminal_log.txt",
+      "reason": "initial",
+      "started_at": "2026-07-23 11:00:01"
+    },
+    {
+      "chunk_index": 2,
+      "continuous_dir": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_five_gestures\\continuous_session\\chunk_002",
+      "controlee_log": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_five_gestures\\continuous_session\\chunk_002\\controlee\\controlee_terminal_log.txt",
+      "controller_log": "C:\\Users\\aksha\\UWB_lab\\datasets\\uwb_five_gestures\\continuous_session\\chunk_002\\controller\\controller_terminal_log.txt",
+      "reason": "no controller samples for 2.7 seconds",
+      "started_at": "2026-07-23 11:17:47"
+    }
+  ],
+  "controlee_return_code": null,
+  "controller": {
+    "max_cm": 342.0,
+    "mean_cm": 52.700819368233724,
+    "median_cm": 41.0,
+    "min_cm": 1.0,
+    "ok_samples": 53944,
+    "total_samples": 54279
+  },
+  "controller_return_code": null,
+  "finished_at": "2026-07-23 11:18:20",
+  "interrupted": false,
+  "stream_restarts": 1
+}

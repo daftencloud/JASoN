@@ -1,0 +1,10 @@
+$ C:\Users\aksha\miniconda3\envs\py39\python.exe C:\Users\aksha\UWB_lab\uwb-qorvo-tools\scripts\device\reset_device\reset_device.py -p COM6
+Device -> Ready
+Device -> Ready
+return_code=0
+
+$ C:\Users\aksha\miniconda3\envs\py39\python.exe C:\Users\aksha\UWB_lab\uwb-qorvo-tools\scripts\device\reset_device\reset_device.py -p COM8
+Device -> Ready
+Device -> Ready
+return_code=0
+
