@@ -1,126 +1,187 @@
-# Final Project: Multimodal Gesture Recognition
+# 🦴 NoseCheck AI
 
-End-to-end IoT + data science system: collect real sensor data across
-5 sensing modalities, build a machine learning pipeline, and
-demonstrate gesture recognition across all 15 gestures.
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-nosecheck.onrender.com-2563eb?style=for-the-badge&logo=render)](https://nosecheck.onrender.com)
+[![Python](https://img.shields.io/badge/Python-3.9+-3776ab?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![Flask](https://img.shields.io/badge/Flask-2.3+-000000?style=for-the-badge&logo=flask)](https://flask.palletsprojects.com)
+[![MediaPipe](https://img.shields.io/badge/MediaPipe-Face%20Landmarks-0f9d58?style=for-the-badge&logo=google)](https://mediapipe.dev)
+[![License](https://img.shields.io/badge/License-Research%20Only-orange?style=for-the-badge)](#license)
 
-## Hardware
+> **A smartphone-based screening tool for detecting nasal asymmetry and Deviated Nasal Septum (DNS) using computer vision and symptom assessment.**
 
-| Sensor | Board | Role |
-|---|---|---|
-| IMU | ESP32 / M5Core2 (6-axis) | Wrist-worn motion |
-| UWB | 3x DWM3001C | 2 fixed anchors + 1 wrist tag, ranging |
-| mmWave | TI IWRL6432FSPEVM | Point-cloud / Doppler, table-mounted near hand |
-| WiFi CSI | ESP32-CAM + ESP32-C3 (+ a 3rd board for SoftAP) | Channel state info |
-| RFID | SparkFun M7E Hecto (ThingMagic) | Tags on thumb + 2-3 fingers |
+🔗 **Try it live → [nosecheck.onrender.com](https://nosecheck.onrender.com)**
 
-## Gestures (15 total)
+---
 
-See `src/gestures.py` for the canonical list: Pull, Push, Clockwise,
-Counterclockwise, Left, Right, Bye-bye, One-arm boxing, Clapping,
-Two-arm boxing, T-arm, Raise arms, Soli, Open/close fist, Palm up/down.
+## 📸 How It Works
 
-`gestures.py` also has an `EXPECTED_STRONGEST_SENSOR` table -- our
-hypothesis for which sensor should be most useful per gesture. This is
-something to **test** in `evaluate.py`, not a restriction: `collect.py`
-records every active sensor for every gesture regardless, so one fused
-model can be trained across the full gesture set.
-
-## Setup
+Upload a frontal face photo → answer a short symptom questionnaire → get a deviation score with severity classification (Normal / Mild / Moderate / Severe).
 
 ```
-pip install -r requirements.txt --break-system-packages
+Photo Upload  →  MediaPipe Face Landmarks  →  Asymmetry Metrics  →  Deviation Score  →  Result
 ```
 
-## Pipeline
+---
 
-```
-src/collect.py            # record one labeled trial at a time, all active sensors
-       |
-       v
-data/raw/<gesture>/<person>_<trial>_<sensor>.csv
-       |
-       v
-src/combine_datasets.py   # build data/processed/trial_manifest.csv
-       |
-       v
-src/extract_features.py   # -> data/processed/features_{imu,uwb,mmwave,wifi,rfid,fused}.csv
-       |
-       v
-src/train.py               # -> models/{feature_set}_{knn,random_forest}.pkl
-       |
-       v
-src/evaluate.py            # -> results/model_comparison.csv, results/figures/*.png
-       |
-       v
-src/realtime_demo.py       # live prediction using a trained model
-```
+## ✨ Features
 
-### 1. Collect data
+- **Automated face landmark detection** using Google's MediaPipe Face Landmarker
+- **4 nasal asymmetry metrics**: lateral deviation, septal angle, nostril asymmetry, bridge alignment
+- **Symptom questionnaire** integrated into the scoring pipeline
+- **Mobile-friendly web interface** — works from any smartphone browser
+- **Research-grade scoring** with Normal / Mild / Moderate / Severe classification
+- **Calibration framework** for validating against 3D-printed reference models
 
-```
-python src/collect.py --person alex --gesture push --duration 2.5 \
-    --imu-port /dev/tty.usbserial-AAA \
-    --uwb-port /dev/tty.usbserial-BBB \
-    --mmwave-port /dev/tty.usbserial-CCC \
-    --rfid-port /dev/tty.usbserial-DDD \
-    --rfid-tags THUMB_EPC,INDEX_EPC,MIDDLE_EPC,RING_EPC
-```
+---
 
-Only pass the ports you actually have connected. Repeat for every
-gesture x every group member, aiming for a balanced trial count (20-30
-per gesture to start). Start with 4-6 gestures your group can collect
-reliably, then expand -- see the lab handout's "practical strategy" note.
+## 🚀 Quick Start
 
-### 2. Combine + extract features
+### Prerequisites
+- Python 3.9+ 
+- pip
 
-```
-python src/combine_datasets.py
-python src/extract_features.py
+### Setup
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/sairamvottikonda-tech/NoseCheckAI.git
+cd NoseCheckAI
+
+# 2. Create a virtual environment
+python3 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 3. Install dependencies
+pip install -r requirements-production.txt   # minimal (web app only)
+# pip install -r requirements.txt            # full (includes analysis tools)
+
+# 4. Download the MediaPipe model
+mkdir -p models
+curl -L -o models/face_landmarker.task \
+  "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+
+# 5. Start the server
+python run_server.py
 ```
 
-### 3. Train + evaluate
+Open **http://localhost:5001** in your browser.
+
+---
+
+## 🧠 Key Metrics
+
+| Metric | Description |
+|---|---|
+| **Lateral Deviation** | Distance from nose tip to facial midline |
+| **Septal Angle** | Angle of nasal septum from vertical |
+| **Nostril Asymmetry** | Left vs. right nostril size/shape differences |
+| **Bridge Alignment** | Straightness of the nasal bridge |
+
+These combine into a weighted **Deviation Score** that maps to a severity classification.
+
+---
+
+## 🛠 Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Computer Vision | OpenCV, MediaPipe Face Landmarker |
+| Web Framework | Flask + Gunicorn |
+| Numerical | NumPy |
+| Analysis (dev) | Pandas, SciPy, scikit-learn, Matplotlib |
+| Deployment | Render (free tier) |
+
+---
+
+## 📁 Project Structure
 
 ```
-python src/train.py
-python src/evaluate.py
+NoseCheckAI/
+├── src/
+│   ├── app/                   # Flask web application
+│   ├── landmark_detection/    # MediaPipe face landmark detection
+│   ├── measurement/           # Nasal asymmetry calculations
+│   ├── scoring/               # Deviation score algorithm
+│   ├── questionnaire/         # Symptom checklist module
+│   └── data_management/       # Data storage and retrieval
+├── data/
+│   ├── calibration_models/    # Known deviations of 3D reference models
+│   └── results/               # Measurement data and scores
+├── scripts/                   # Calibration and analysis utilities
+├── templates/                 # HTML templates
+├── static/                    # CSS, JS assets
+├── models/                    # MediaPipe model (downloaded at build)
+├── docs/                      # Research notes and documentation
+├── render.yaml                # Render deployment config
+├── requirements-production.txt
+└── requirements.txt
 ```
 
-`evaluate.py` reports, per feature set (imu-only, uwb-only, mmwave-only,
-wifi-only, rfid-only, and fused) x model (KNN, Random Forest):
-random-split accuracy and held-out-person accuracy, and tells you
-whether fusion beat the best single sensor. Confusion matrices land in
-`results/figures/`.
+---
 
-### 4. Live demo
+## 🐍 Python API
 
+```python
+from src.landmark_detection.detector import detect_landmarks
+from src.measurement.asymmetry_calculator import calculate
+from src.scoring.score_calculator import calculate_score
+
+image_path = "path/to/face_photo.jpg"
+landmarks = detect_landmarks(image_path)
+if landmarks:
+    measurements = calculate(landmarks)
+    result = calculate_score(measurements)
+    print(f"Deviation Score: {result['deviation_score']}")
+    print(f"Classification:  {result['classification']}")
 ```
-python src/realtime_demo.py --model models/fused_random_forest.pkl \
-    --imu-port /dev/tty.usbserial-AAA --uwb-port /dev/tty.usbserial-BBB
-```
 
-## What I need from you to finish two sensor readers
+---
 
-Everything is implemented and real EXCEPT two clearly-marked gaps:
+## ☁️ Deploying to Render
 
-1. **`src/sensors/uwb_reader.py`** -- your DWM3001C's exact shell output
-   format is still unconfirmed. Connect one module directly via USB,
-   open a serial terminal at 115200 baud, power the anchors, and send
-   me what you see -- I'll fill in the real parsing.
-2. **`src/sensors/rfid_reader.py`** -- implements the real
-   ThingMagic/Mercury binary protocol directly in Python, but I'm not
-   100% certain of the exact response byte offsets for your module/
-   firmware version. Cross-check against SparkFun's open-source library
-   source (`SparkFun_UHF_RFID_Reader.cpp` on GitHub) if reads come back
-   garbled, and let me know what you find so I can correct it.
+The repo includes a `render.yaml` for one-click deployment:
 
-Everything else (`imu_reader.py`, `mmwave_reader.py`, `wifi_reader.py`,
-and the entire `collect.py` -> `evaluate.py` pipeline) is complete,
-real code.
+1. Fork this repo
+2. Go to [render.com](https://render.com) → New → Blueprint
+3. Connect your fork — Render will auto-detect `render.yaml`
+4. The build command downloads the MediaPipe model and installs deps automatically
 
-## Note on data/models in git
+---
 
-`.gitignore` currently excludes raw/processed CSVs and trained `.pkl`
-models (they can get large, and shouldn't usually live in git). If
-your TA wants the actual dataset/models committed for grading, remove
-those lines from `.gitignore` before your first commit.
+## 🔬 Research Context
+
+NoseCheck is designed to:
+- Validate correlation between calculated asymmetry scores and known deviations (e.g., 3D-printed models, CT data)
+- Assess measurement repeatability (target CV < 10%)
+- Serve as an educational screening tool for adolescent nasal health awareness
+
+**Expected outcomes:** High r² correlation with ground truth, reliable 4-class severity distinction.
+
+---
+
+## 🛠 Troubleshooting
+
+**Face detection fails** — Use a well-lit frontal photo with the full face visible. Avoid angles, shadows, or obstructions.
+
+**Port 5001 in use** — Change the port in `run_server.py`. (Port 5000 is avoided by default due to macOS AirPlay conflicts.)
+
+**Model download fails** — Download the `.task` file manually using the `curl` command in step 4 above.
+
+**Import errors** — Make sure you're in the project root and the venv is activated.
+
+---
+
+## ⚠️ Disclaimer
+
+This tool is for **research and educational purposes only**. It is not a medical device and is not intended for clinical diagnosis or treatment decisions. Always consult a qualified healthcare professional for medical advice.
+
+---
+
+## 🤝 Contributing
+
+This is an active research project. For questions, bug reports, or collaboration inquiries, open an Issue or reach out via GitHub.
+
+---
+
+## 📄 License
+
+To be determined based on research institution requirements. All rights reserved pending publication.
