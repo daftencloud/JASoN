@@ -43,7 +43,7 @@ def build_readers(args):
     if args.uwb_port:
         readers["uwb"] = UwbReader(args.uwb_port)
     if args.mmwave_port:
-        readers["mmwave"] = MmwaveReader(args.mmwave_port)
+        readers["mmwave"] = MmwaveReader(args.mmwave_port, cfg_path=args.mmwave_cfg)
     if args.wifi_port:
         readers["wifi"] = WifiReader(args.wifi_port)
     if args.rfid_port:
@@ -133,6 +133,9 @@ def main():
     parser.add_argument("--imu-port")
     parser.add_argument("--uwb-port")
     parser.add_argument("--mmwave-port")
+    parser.add_argument("--mmwave-cfg", help="Path to a .cfg file from your "
+                         "cloned mmwave_lab repo, e.g. "
+                         "~/COSMOS-Cluster10/mmwave_lab/xwrL64xx-evm/point_cloud.cfg")
     parser.add_argument("--wifi-port")
     parser.add_argument("--rfid-port")
     parser.add_argument("--rfid-tags", help="comma-separated EPC hex strings, "

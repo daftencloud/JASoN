@@ -1,43 +1,129 @@
 """
 mmwave_reader.py
 ----------------------------------------------------
-Reads point-cloud frames from the TI IWRL6432FSPEVM's DATA UART port,
-using TI's standard binary TLV (type-length-value) frame format --
-the same format used across TI's mmWave Demo Visualizer ecosystem.
+Reads point-cloud frames from the TI IWRL6432FSPEVM, using the SAME
+protocol confirmed working by the course's own `mmwave_lab` repo
+(wshanmu/mmwave_lab, get_range_profile.py). Ported directly from that
+verified source rather than reconstructed independently.
 
-IMPORTANT: connect this reader's `port` to the radar's DATA port, not
-the CLI/config port -- they're two separate UARTs typically exposed
-over the same USB connection. Check your board or `mmwave_lab` course
-materials for which one is which, and the DATA port's baud rate
-(921600 is a common default for TI mmWave demos -- update `baud` if
-yours differs).
+KEY CORRECTIONS from an earlier draft of this file:
+  1. This is a SINGLE-PORT protocol -- the same serial connection is
+     used for the text CLI configuration handshake AND the binary
+     frame data afterward. There is no separate high-baud "DATA port."
+  2. Default baud is 115200 (the CLI's default), not 921600.
+  3. Before any binary frames arrive, you must send the radar its
+     configuration commands (from a .cfg file) over the CLI and wait
+     for text acknowledgements -- the demo firmware sends nothing in
+     binary until this handshake completes and `sensorStart` is sent.
 
-FORMAT NOTE: this implements the header/TLV layout used consistently
-across TI's classic mmWave SDK demos and generally preserved in the
-newer L-SDK for visualizer compatibility. Some specific demo firmware
-builds reorder or drop header fields -- verify against your actual
-frame data (see README "Calibration Procedure": numTLVs and
-totalPacketLen should look sane; garbage values mean your firmware
-build uses a different header layout).
+CFG FILE: point a `cfg_path` at one of the .cfg files from your cloned
+mmwave_lab repo, e.g. `xwrL64xx-evm/point_cloud.cfg` for point-cloud
+data (what gesture recognition needs) or `xwrL64xx-evm/hand_distance.cfg`
+for range-profile-only data.
+
+The binary frame header/TLV parsing logic itself (magic word, 40-byte
+header, TLV type+length+payload) matches what get_range_profile.py
+uses and is confirmed correct against real hardware -- only the missing
+CLI handshake and wrong default baud were bugs in the earlier version
+of this file.
 """
 
 import math
 import struct
+import time
 
 from .base_reader import BaseSensorReader
 
 MAGIC_WORD = bytes([0x02, 0x01, 0x04, 0x03, 0x06, 0x05, 0x08, 0x07])
 HEADER_SIZE = 40  # 8 magic + 8 x uint32 fields
 TLV_HEADER_SIZE = 8  # type(4) + length(4)
-TLV_TYPE_DETECTED_POINTS = 1
-BYTES_PER_POINT = 16  # x, y, z, doppler as 4x float32
+TLV_TYPE_DETECTED_POINTS = 1  # point cloud (x, y, z, doppler per point)
+BYTES_PER_POINT = 16
 MAX_PACKET_SIZE = 8192
+
+CLI_FAILURE_PATTERNS = ("error", "not recognized", "invalid", "failed")
+CLI_OK_PATTERNS = ("done", "mmwdemo:", "skipped")
+
+
+def _load_configuration(cfg_path):
+    commands = []
+    with open(cfg_path, "r", encoding="utf-8", errors="ignore") as f:
+        for raw_line in f:
+            line = raw_line.strip()
+            if not line or line.startswith(("%", "#")):
+                continue
+            commands.append(line)
+    if not any(line.startswith("sensorStart") for line in commands):
+        raise ValueError(f"{cfg_path} has no sensorStart command.")
+    return commands
 
 
 class MmwaveReader(BaseSensorReader):
-    def __init__(self, port: str, baud: int = 921600):
+    def __init__(self, port: str, baud: int = 115200, cfg_path: str = None):
         super().__init__(port, baud, name="mmwave")
+        if cfg_path is None:
+            raise ValueError(
+                "MmwaveReader requires cfg_path -- point it at a .cfg file "
+                "from your cloned mmwave_lab repo, e.g. "
+                "'xwrL64xx-evm/point_cloud.cfg' for gesture/point-cloud data."
+            )
+        self.cfg_path = cfg_path
         self._buffer = bytearray()
+
+    def connect(self):
+        """
+        Opens the port and runs the CLI configuration handshake before
+        returning -- this is the step that was missing before. After
+        this completes, the radar is streaming binary frames on this
+        same port.
+        """
+        super().connect()  # opens self._ser at self.baud
+        time.sleep(0.5)
+
+        commands = _load_configuration(self.cfg_path)
+        start_command = None
+
+        for command in commands:
+            if command.startswith("sensorStart"):
+                start_command = command
+                continue
+            if command.split()[0] == "baudRate":
+                # Skip baudRate commands -- keep the host at self.baud,
+                # matching get_range_profile.py's default behavior
+                # (macOS USB-serial adapters are more reliable staying
+                # at one fixed rate).
+                continue
+
+            self._ser.write((command + "\n").encode("ascii"))
+            self._ser.flush()
+            reply = self._read_text_until_quiet()
+
+            reply_lower = reply.lower()
+            if any(p in reply_lower for p in CLI_FAILURE_PATTERNS):
+                raise RuntimeError(f"Radar rejected command {command!r}: {reply}")
+
+        if start_command is None:
+            raise ValueError("No sensorStart command found in cfg.")
+
+        self._ser.reset_input_buffer()
+        self._ser.write((start_command + "\n").encode("ascii"))
+        self._ser.flush()
+        time.sleep(0.2)
+
+    def _read_text_until_quiet(self, quiet_time=0.15, max_time=2.0):
+        start = time.monotonic()
+        last_rx = start
+        chunks = []
+        while time.monotonic() - start < max_time:
+            waiting = self._ser.in_waiting
+            if waiting:
+                chunks.append(self._ser.read(waiting))
+                last_rx = time.monotonic()
+                continue
+            if time.monotonic() - last_rx >= quiet_time:
+                break
+            time.sleep(0.01)
+        return b"".join(chunks).decode("ascii", errors="ignore")
 
     def _find_magic_word(self) -> int:
         return self._buffer.find(MAGIC_WORD)
@@ -45,31 +131,25 @@ class MmwaveReader(BaseSensorReader):
     def _try_parse_packet(self):
         idx = self._find_magic_word()
         if idx < 0:
-            # No magic word anywhere in the buffer -- avoid unbounded
-            # growth on garbage/pre-stream noise.
             if len(self._buffer) > MAX_PACKET_SIZE:
                 self._buffer = self._buffer[-MAX_PACKET_SIZE // 2:]
             return None
 
         if idx > 0:
-            del self._buffer[:idx]  # discard bytes before the magic word
+            del self._buffer[:idx]
 
         if len(self._buffer) < HEADER_SIZE:
-            return None  # header not fully received yet
+            return None
 
         total_packet_len = struct.unpack_from("<I", self._buffer, 12)[0]
-        num_detected_obj = struct.unpack_from("<I", self._buffer, 24)[0]
         num_tlvs = struct.unpack_from("<I", self._buffer, 28)[0]
 
-        # Sanity bounds -- reject an implausible "match" and resync
-        # past this magic word rather than getting stuck (see README
-        # note on header layout mismatches).
-        if not (HEADER_SIZE <= total_packet_len <= MAX_PACKET_SIZE) or num_tlvs > 32:
+        if not (HEADER_SIZE <= total_packet_len <= MAX_PACKET_SIZE) or num_tlvs > 64:
             del self._buffer[:8]
             return None
 
         if len(self._buffer) < total_packet_len:
-            return None  # full packet not received yet
+            return None
 
         points = []
         offset = HEADER_SIZE
@@ -80,16 +160,16 @@ class MmwaveReader(BaseSensorReader):
             payload_offset = offset + TLV_HEADER_SIZE
 
             if payload_offset + tlv_length > total_packet_len:
-                break  # malformed/truncated TLV
+                break
 
             if tlv_type == TLV_TYPE_DETECTED_POINTS:
                 num_points = tlv_length // BYTES_PER_POINT
                 for p in range(num_points):
                     po = payload_offset + p * BYTES_PER_POINT
                     x, y, z, doppler = struct.unpack_from("<ffff", self._buffer, po)
-                    r = (x * x + y * y + z * z) ** 0.5
-                    horiz = (x * x + y * y) ** 0.5
-                    angle = math.degrees(math.atan2(x, y))       # azimuth
+                    r = math.sqrt(x * x + y * y + z * z)
+                    horiz = math.sqrt(x * x + y * y)
+                    angle = math.degrees(math.atan2(x, y))
                     elevation = math.degrees(math.atan2(z, horiz)) if horiz > 0 else 0.0
                     points.append({
                         "range": r, "doppler": doppler,
@@ -98,13 +178,8 @@ class MmwaveReader(BaseSensorReader):
 
             offset = payload_offset + tlv_length
 
-        # Consume this packet.
         del self._buffer[:total_packet_len]
-
-        return {
-            "num_detected_obj": num_detected_obj,
-            "points": points,
-        }
+        return {"points": points}
 
     def read_sample(self):
         if self._ser is not None and self._ser.in_waiting:
@@ -114,11 +189,8 @@ class MmwaveReader(BaseSensorReader):
         if parsed is None:
             return None
 
-        # Flatten the point cloud into a fixed-shape-friendly dict --
-        # extract_features.py aggregates across whatever points are
-        # present, so a variable point count per frame is fine.
         return {
-            "timestamp_ms": None,  # filled in by collect.py at receipt time
+            "timestamp_ms": time.time() * 1000,
             "num_points": len(parsed["points"]),
-            "points": parsed["points"],  # list of {range, doppler, angle, elevation}
+            "points": parsed["points"],
         }

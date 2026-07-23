@@ -58,6 +58,7 @@ def main():
     parser.add_argument("--imu-port")
     parser.add_argument("--uwb-port")
     parser.add_argument("--mmwave-port")
+    parser.add_argument("--mmwave-cfg", help="Path to a .cfg file from mmwave_lab")
     parser.add_argument("--wifi-port")
     parser.add_argument("--rfid-port")
     parser.add_argument("--rfid-tags", help="comma-separated EPCs to track, for the RFID test")
@@ -70,7 +71,7 @@ def main():
     if args.uwb_port:
         results["uwb"] = test_reader("UWB", UwbReader(args.uwb_port))
     if args.mmwave_port:
-        results["mmwave"] = test_reader("mmWave", MmwaveReader(args.mmwave_port))
+        results["mmwave"] = test_reader("mmWave", MmwaveReader(args.mmwave_port, cfg_path=args.mmwave_cfg))
     if args.wifi_port:
         results["wifi"] = test_reader("WiFi CSI", WifiReader(args.wifi_port))
     if args.rfid_port:
