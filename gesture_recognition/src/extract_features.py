@@ -31,8 +31,19 @@ MANIFEST_PATH = os.path.join(DATA_PROCESSED_DIR, "trial_manifest.csv")
 
 
 def _safe_json_load(value):
+    """
+    Parses a value that's either a JSON string (the CSV-loaded case,
+    written by collect.py) OR already a real Python list/dict (the
+    live realtime_demo.py case, which passes sensor data straight from
+    the reader without ever serializing it). Handling both is required
+    -- without the isinstance check below, live data would silently
+    fail to parse and every mmWave/WiFi/RFID feature would come out as
+    zero during real-time prediction, regardless of the actual gesture.
+    """
     if value is None or (isinstance(value, float) and np.isnan(value)):
         return None
+    if isinstance(value, (list, dict)):
+        return value  # already parsed -- this is the live-data path
     try:
         return json.loads(value)
     except (TypeError, json.JSONDecodeError):

@@ -25,8 +25,8 @@ import pandas as pd
 from sensors import ImuReader, UwbReader, MmwaveReader, WifiReader, RfidReader
 from extract_features import EXTRACTORS
 
-WINDOW_SECONDS = 1.5
-PREDICT_INTERVAL_SECONDS = 0.3
+WINDOW_SECONDS = 5.0
+PREDICT_INTERVAL_SECONDS = 1.0
 
 
 def build_readers(args):
