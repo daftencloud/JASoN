@@ -141,13 +141,13 @@ def main():
                                               "thumb first")
     args = parser.parse_args()
 
-    readers = build_readers(args)
-    if not readers:
-        print("No sensor ports provided -- pass at least one of --imu-port, "
-              "--uwb-port, --mmwave-port, --wifi-port, --rfid-port.")
-        return
-    
     for i in range(args.trials):
+        readers = build_readers(args)
+        if not readers:
+            print("No sensor ports provided -- pass at least one of --imu-port, "
+                "--uwb-port, --mmwave-port, --wifi-port, --rfid-port.")
+            return
+
         record_trial(readers, args.gesture, args.person, args.duration)
 
 
