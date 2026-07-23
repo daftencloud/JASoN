@@ -37,9 +37,74 @@ from .base_reader import BaseSensorReader
 MAGIC_WORD = bytes([0x02, 0x01, 0x04, 0x03, 0x06, 0x05, 0x08, 0x07])
 HEADER_SIZE = 40  # 8 magic + 8 x uint32 fields
 TLV_HEADER_SIZE = 8  # type(4) + length(4)
-TLV_TYPE_DETECTED_POINTS = 1  # point cloud (x, y, z, doppler per point)
-BYTES_PER_POINT = 16
+
+# Point-cloud TLVs come in TWO possible formats, both confirmed real by
+# point_cloud_viewer.py in the course's mmwave_lab repo. This demo
+# firmware apparently uses the FIXED-point format (301/1020), not the
+# float format (1) -- an earlier version of this file only handled
+# type 1 and silently discarded every real point as a result.
+TLV_TYPE_POINT_CLOUD_FLOAT = 1
+TLV_TYPES_POINT_CLOUD_FIXED = {301, 1020}
+BYTES_PER_FLOAT_POINT = 16  # x, y, z, doppler as 4x float32
 MAX_PACKET_SIZE = 8192
+
+def _decode_fixed_points(payload: bytes) -> list:
+    """
+    Decodes the fixed-point point-cloud TLV format (types 301/1020),
+    ported directly from point_cloud_viewer.py's decode_fixed_points().
+    """
+    if len(payload) < 20:
+        return []
+
+    xyz_unit, doppler_unit, _snr_unit, _noise_unit = struct.unpack_from(
+        "<ffff", payload, 0
+    )
+    num_major_points, _num_minor_points = struct.unpack_from("<HH", payload, 16)
+
+    points = []
+    offset = 20
+    for _ in range(num_major_points):
+        if offset + 10 > len(payload):
+            break
+        x, y, z, doppler, _snr, _noise = struct.unpack_from(
+            "<hhhhBB", payload, offset
+        )
+        real_x = x * xyz_unit
+        real_y = y * xyz_unit
+        real_z = z * xyz_unit
+        real_doppler = doppler * doppler_unit
+
+        r = math.sqrt(real_x * real_x + real_y * real_y + real_z * real_z)
+        horiz = math.sqrt(real_x * real_x + real_y * real_y)
+        angle = math.degrees(math.atan2(real_x, real_y))
+        elevation = math.degrees(math.atan2(real_z, horiz)) if horiz > 0 else 0.0
+
+        points.append({
+            "range": r, "doppler": real_doppler,
+            "angle": angle, "elevation": elevation,
+        })
+        offset += 10
+
+    return points
+
+
+def _decode_float_points(payload: bytes) -> list:
+    """Decodes the float point-cloud TLV format (type 1)."""
+    points = []
+    num_points = len(payload) // BYTES_PER_FLOAT_POINT
+    for p in range(num_points):
+        po = p * BYTES_PER_FLOAT_POINT
+        x, y, z, doppler = struct.unpack_from("<ffff", payload, po)
+        r = math.sqrt(x * x + y * y + z * z)
+        horiz = math.sqrt(x * x + y * y)
+        angle = math.degrees(math.atan2(x, y))
+        elevation = math.degrees(math.atan2(z, horiz)) if horiz > 0 else 0.0
+        points.append({
+            "range": r, "doppler": doppler,
+            "angle": angle, "elevation": elevation,
+        })
+    return points
+
 
 CLI_FAILURE_PATTERNS = ("error", "not recognized", "invalid", "failed")
 CLI_OK_PATTERNS = ("done", "mmwdemo:", "skipped")
@@ -162,19 +227,10 @@ class MmwaveReader(BaseSensorReader):
             if payload_offset + tlv_length > total_packet_len:
                 break
 
-            if tlv_type == TLV_TYPE_DETECTED_POINTS:
-                num_points = tlv_length // BYTES_PER_POINT
-                for p in range(num_points):
-                    po = payload_offset + p * BYTES_PER_POINT
-                    x, y, z, doppler = struct.unpack_from("<ffff", self._buffer, po)
-                    r = math.sqrt(x * x + y * y + z * z)
-                    horiz = math.sqrt(x * x + y * y)
-                    angle = math.degrees(math.atan2(x, y))
-                    elevation = math.degrees(math.atan2(z, horiz)) if horiz > 0 else 0.0
-                    points.append({
-                        "range": r, "doppler": doppler,
-                        "angle": angle, "elevation": elevation,
-                    })
+            if tlv_type == TLV_TYPE_POINT_CLOUD_FLOAT:
+                points.extend(_decode_float_points(self._buffer[payload_offset:payload_offset + tlv_length]))
+            elif tlv_type in TLV_TYPES_POINT_CLOUD_FIXED:
+                points.extend(_decode_fixed_points(self._buffer[payload_offset:payload_offset + tlv_length]))
 
             offset = payload_offset + tlv_length
 
