@@ -1,78 +1,126 @@
-# Final Project: Gesture Recognition with IMU + UWB Fusion
+# Final Project: Multimodal Gesture Recognition
 
-## Hardware Setup
+End-to-end IoT + data science system: collect real sensor data across
+5 sensing modalities, build a machine learning pipeline, and
+demonstrate gesture recognition across all 15 gestures.
 
-| Role | Device | Placement |
+## Hardware
+
+| Sensor | Board | Role |
 |---|---|---|
-| Primary sensor | Core2 IMU | Strapped to wrist (accelerometer + gyroscope) |
-| Anchor 1 | UWB module #1 | Fixed, placed in front of the gesture space |
-| Anchor 2 | UWB module #2 | Fixed, placed to the side of the gesture space |
-| Tag | UWB module #3 | Strapped to the *same* wrist as the IMU |
+| IMU | ESP32 / M5Core2 (6-axis) | Wrist-worn motion |
+| UWB | 3x DWM3001C | 2 fixed anchors + 1 wrist tag, ranging |
+| mmWave | TI IWRL6432FSPEVM | Point-cloud / Doppler, table-mounted near hand |
+| WiFi CSI | ESP32-CAM + ESP32-C3 (+ a 3rd board for SoftAP) | Channel state info |
+| RFID | SparkFun M7E Hecto (ThingMagic) | Tags on thumb + 2-3 fingers |
 
-Both the IMU and the UWB tag connect to your laptop over USB at the same
-time (use the 4-port hub). The two fixed UWB anchors just need power
-(USB power adapter or the hub) — they don't need to stay connected to
-your laptop.
+## Gestures (15 total)
 
-## Gestures (start with this subset)
+See `src/gestures.py` for the canonical list: Pull, Push, Clockwise,
+Counterclockwise, Left, Right, Bye-bye, One-arm boxing, Clapping,
+Two-arm boxing, T-arm, Raise arms, Soli, Open/close fist, Palm up/down.
 
-- Push, Pull — strong UWB range signature (distance to front anchor changes)
-- Left, Right — strong differential signature between the two anchors
-- Clockwise, Anti-clockwise — strong IMU gyro signature, weak UWB signature
+`gestures.py` also has an `EXPECTED_STRONGEST_SENSOR` table -- our
+hypothesis for which sensor should be most useful per gesture. This is
+something to **test** in `evaluate.py`, not a restriction: `collect.py`
+records every active sensor for every gesture regardless, so one fused
+model can be trained across the full gesture set.
 
-Starting with 6 gestures where you can predict *which sensor should help
-more* gives you a natural story for the "did fusion help all gestures,
-or only some?" evaluation question.
-
-## Workflow
-
-1. **Flash firmware**
-   - `imu_core2_firmware.ino` → Core2 board
-   - `uwb_anchor_firmware.ino` → both anchor UWB modules (give each a
-     unique address, see TODOs in the file)
-   - `uwb_tag_firmware.ino` → the wrist-worn UWB module
-
-   Check your UWB module's actual chip/library before flashing — the
-   template assumes a DW1000-based board using the `arduino-dw1000`
-   library. Swap in the matching library if your kit uses a different
-   chip (ask the TA if unsure).
-
-2. **Collect data** — one trial per run:
-   ```
-   python collect_data.py --imu-port /dev/tty.XXXX --uwb-port /dev/tty.YYYY \
-       --person alex --gesture push --duration 2.5
-   ```
-   Repeat for every gesture × every group member. Aim for a balanced
-   number of trials per gesture (20-30 to start).
-
-3. **Extract features**:
-   ```
-   python extract_features.py
-   ```
-   Produces `data/features/imu_only_features.csv`,
-   `uwb_only_features.csv`, and `fused_features.csv`.
-
-4. **Train and evaluate**:
-   ```
-   python train_and_evaluate.py
-   ```
-   Compares IMU-only vs UWB-only vs Fused, KNN vs Random Forest, and
-   random split vs held-out-person split. Saves a summary table and
-   confusion matrix plots to `outputs/`.
-
-## Install dependencies
+## Setup
 
 ```
-pip install pyserial pandas numpy scikit-learn matplotlib --break-system-packages
+pip install -r requirements.txt --break-system-packages
 ```
 
-## What to report (per the lab requirements)
+## Pipeline
 
-- Confusion matrix for baseline (IMU-only) and fused model
-- Which gestures are easiest/hardest, and why (tie back to whether that
-  gesture has a strong signature in IMU, UWB, or both)
-- Held-out-person accuracy vs random-split accuracy — does the model
-  generalize to someone it hasn't seen?
-- Whether fusion helped all gestures or only some (this is the natural
-  finding given the gesture set above — Push/Pull/Left/Right should
-  benefit from UWB, Clockwise/Anti-clockwise may not)
+```
+src/collect.py            # record one labeled trial at a time, all active sensors
+       |
+       v
+data/raw/<gesture>/<person>_<trial>_<sensor>.csv
+       |
+       v
+src/combine_datasets.py   # build data/processed/trial_manifest.csv
+       |
+       v
+src/extract_features.py   # -> data/processed/features_{imu,uwb,mmwave,wifi,rfid,fused}.csv
+       |
+       v
+src/train.py               # -> models/{feature_set}_{knn,random_forest}.pkl
+       |
+       v
+src/evaluate.py            # -> results/model_comparison.csv, results/figures/*.png
+       |
+       v
+src/realtime_demo.py       # live prediction using a trained model
+```
+
+### 1. Collect data
+
+```
+python src/collect.py --person alex --gesture push --duration 2.5 \
+    --imu-port /dev/tty.usbserial-AAA \
+    --uwb-port /dev/tty.usbserial-BBB \
+    --mmwave-port /dev/tty.usbserial-CCC \
+    --rfid-port /dev/tty.usbserial-DDD \
+    --rfid-tags THUMB_EPC,INDEX_EPC,MIDDLE_EPC,RING_EPC
+```
+
+Only pass the ports you actually have connected. Repeat for every
+gesture x every group member, aiming for a balanced trial count (20-30
+per gesture to start). Start with 4-6 gestures your group can collect
+reliably, then expand -- see the lab handout's "practical strategy" note.
+
+### 2. Combine + extract features
+
+```
+python src/combine_datasets.py
+python src/extract_features.py
+```
+
+### 3. Train + evaluate
+
+```
+python src/train.py
+python src/evaluate.py
+```
+
+`evaluate.py` reports, per feature set (imu-only, uwb-only, mmwave-only,
+wifi-only, rfid-only, and fused) x model (KNN, Random Forest):
+random-split accuracy and held-out-person accuracy, and tells you
+whether fusion beat the best single sensor. Confusion matrices land in
+`results/figures/`.
+
+### 4. Live demo
+
+```
+python src/realtime_demo.py --model models/fused_random_forest.pkl \
+    --imu-port /dev/tty.usbserial-AAA --uwb-port /dev/tty.usbserial-BBB
+```
+
+## What I need from you to finish two sensor readers
+
+Everything is implemented and real EXCEPT two clearly-marked gaps:
+
+1. **`src/sensors/uwb_reader.py`** -- your DWM3001C's exact shell output
+   format is still unconfirmed. Connect one module directly via USB,
+   open a serial terminal at 115200 baud, power the anchors, and send
+   me what you see -- I'll fill in the real parsing.
+2. **`src/sensors/rfid_reader.py`** -- implements the real
+   ThingMagic/Mercury binary protocol directly in Python, but I'm not
+   100% certain of the exact response byte offsets for your module/
+   firmware version. Cross-check against SparkFun's open-source library
+   source (`SparkFun_UHF_RFID_Reader.cpp` on GitHub) if reads come back
+   garbled, and let me know what you find so I can correct it.
+
+Everything else (`imu_reader.py`, `mmwave_reader.py`, `wifi_reader.py`,
+and the entire `collect.py` -> `evaluate.py` pipeline) is complete,
+real code.
+
+## Note on data/models in git
+
+`.gitignore` currently excludes raw/processed CSVs and trained `.pkl`
+models (they can get large, and shouldn't usually live in git). If
+your TA wants the actual dataset/models committed for grading, remove
+those lines from `.gitignore` before your first commit.

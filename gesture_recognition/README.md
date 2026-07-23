@@ -4,12 +4,6 @@ End-to-end IoT + data science system: collect real sensor data across
 5 sensing modalities, build a machine learning pipeline, and
 demonstrate gesture recognition across all 15 gestures.
 
-**Pure Python** -- no firmware/C++ in this repo. Every board just
-streams raw data over USB serial (using whichever streaming firmware
-is already flashed per earlier labs, or vendor demo firmware for
-UWB/mmWave/RFID); all windowing, feature extraction, and classification
-happens here in Python.
-
 ## Hardware
 
 | Sensor | Board | Role |
