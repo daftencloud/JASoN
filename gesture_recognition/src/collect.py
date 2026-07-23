@@ -43,7 +43,7 @@ def build_readers(args):
     if args.uwb_port:
         readers["uwb"] = UwbReader(args.uwb_port)
     if args.mmwave_port:
-        readers["mmwave"] = MmwaveReader(args.mmwave_port, cfg_path=args.mmwave_cfg)
+        readers["mmwave"] = MmwaveReader(args.mmwave_port)
     if args.wifi_port:
         readers["wifi"] = WifiReader(args.wifi_port)
     if args.rfid_port:
@@ -130,12 +130,10 @@ def main():
     parser.add_argument("--person", required=True)
     parser.add_argument("--gesture", required=True, choices=GESTURES)
     parser.add_argument("--duration", type=float, default=2.5)
+    parser.add_argument("--trials", type=int, default=20)
     parser.add_argument("--imu-port")
     parser.add_argument("--uwb-port")
     parser.add_argument("--mmwave-port")
-    parser.add_argument("--mmwave-cfg", help="Path to a .cfg file from your "
-                         "cloned mmwave_lab repo, e.g. "
-                         "~/COSMOS-Cluster10/mmwave_lab/xwrL64xx-evm/point_cloud.cfg")
     parser.add_argument("--wifi-port")
     parser.add_argument("--rfid-port")
     parser.add_argument("--rfid-tags", help="comma-separated EPC hex strings, "
@@ -147,8 +145,9 @@ def main():
         print("No sensor ports provided -- pass at least one of --imu-port, "
               "--uwb-port, --mmwave-port, --wifi-port, --rfid-port.")
         return
-
-    record_trial(readers, args.gesture, args.person, args.duration)
+    
+    for i in range(args.trials):
+        record_trial(readers, args.gesture, args.person, args.duration)
 
 
 if __name__ == "__main__":
