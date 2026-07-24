@@ -43,7 +43,7 @@ def build_readers(args):
     if args.uwb_controller_port and args.uwb_controlee_port:
         readers["uwb"] = UwbReader(args.uwb_controller_port, args.uwb_controlee_port, args.uwb_lab_tools_path, channel=args.uwb_channel, preamble_idx=args.uwb_preamble_idx)
     if args.mmwave_port:
-        readers["mmwave"] = MmwaveReader(args.mmwave_port, cfg_path=args.mmwave_cfg)
+        readers["mmwave"] = MmwaveReader(args.mmwave_port)
     if args.wifi_port:
         readers["wifi"] = WifiReader(args.wifi_port)
     if args.rfid_port:
@@ -64,7 +64,7 @@ def next_trial_number(gesture_dir: str, person: str) -> int:
     return (max(trial_nums) + 1) if trial_nums else 1
 
 
-def record_trial(readers: dict, gesture: str, person: str, duration: float):
+def record_trial(readers: dict, gesture: str, person: str, duration: float, auto: bool):
     if gesture not in GESTURES:
         print(f"WARNING: '{gesture}' is not in the canonical GESTURES list "
               f"in gestures.py -- continuing anyway, but double check spelling.")
@@ -76,9 +76,13 @@ def record_trial(readers: dict, gesture: str, person: str, duration: float):
     for reader in readers.values():
         reader.connect()
 
-    input(f"Ready to record '{gesture}' trial {trial_num} for {person} "
-          f"using sensors: {list(readers.keys())}. Press Enter, then perform "
-          f"the gesture...")
+    if auto:
+        print(f"Ready to record '{gesture}' trial {trial_num} for {person} "
+            f"using sensors: {list(readers.keys())}.")
+    else:
+        input(f"Ready to record '{gesture}' trial {trial_num} for {person} "
+            f"using sensors: {list(readers.keys())}. Press Enter, then perform "
+            f"the gesture...")
 
     buffers = {name: [] for name in readers}
     deadline = time.time() + duration
@@ -131,6 +135,7 @@ def main():
     parser.add_argument("--gesture", required=True, choices=GESTURES)
     parser.add_argument("--duration", type=float, default=2.5)
     parser.add_argument("--trials", type=int, default=20)
+    parser.add_argument("--auto", action="store_true")
     parser.add_argument("--imu-port")
     parser.add_argument("--uwb-controller-port")
     parser.add_argument("--uwb-controlee-port")
@@ -138,7 +143,6 @@ def main():
     parser.add_argument("--uwb-channel", type=int, default=5)
     parser.add_argument("--uwb-preamble-idx", type=int, default=9)
     parser.add_argument("--mmwave-port")
-    parser.add_argument("--mmwave-cfg", help="Path to a .cfg file from mmwave_lab")
     parser.add_argument("--wifi-port")
     parser.add_argument("--rfid-port")
     parser.add_argument("--rfid-tags", help="comma-separated EPC hex strings, "
@@ -152,7 +156,7 @@ def main():
                 "--uwb-port, --mmwave-port, --wifi-port, --rfid-port.")
             return
 
-        record_trial(readers, args.gesture, args.person, args.duration)
+        record_trial(readers, args.gesture, args.person, args.duration, args.auto)
 
 
 if __name__ == "__main__":
