@@ -1,0 +1,22 @@
+{
+  "channel": 5,
+  "collection_mode": "continuous_session_segmented_trials",
+  "collector": "sai",
+  "created_at": "2026-07-24 15:17:38",
+  "dataset_name": "gesture_dataset_20260724_151738",
+  "fps": 50.0,
+  "gestures": [
+    "push",
+    "pull"
+  ],
+  "group_id": 1,
+  "input_type": "range",
+  "pause_s": 2.0,
+  "preamble_code": 9,
+  "ranging_span_ms": 20,
+  "session_duration_s": 3600,
+  "slot_span": 2400,
+  "slots_per_rr": 6,
+  "trial_duration_s": 3.0,
+  "trials_per_gesture": 10
+}

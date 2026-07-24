@@ -141,7 +141,7 @@ def main():
     parser.add_argument("--uwb-controlee-port")
     parser.add_argument("--uwb-lab-tools-path", default="/Users/sairamvottikonda/UWB_lab/uwb-qorvo-tools")
     parser.add_argument("--uwb-channel", type=int, default=5)
-    parser.add_argument("--uwb-preamble-idx", type=int, default=9)
+    parser.add_argument("--uwb-preamble-idx", type=int, default=11)
     parser.add_argument("--mmwave-port")
     parser.add_argument("--mmwave-cfg", help="Path to a .cfg file from mmwave_lab")
     parser.add_argument("--wifi-port")
@@ -150,13 +150,13 @@ def main():
                                               "thumb first")
     args = parser.parse_args()
 
-    for i in range(args.trials):
-        readers = build_readers(args)
-        if not readers:
-            print("No sensor ports provided -- pass at least one of --imu-port, "
-                "--uwb-port, --mmwave-port, --wifi-port, --rfid-port.")
-            return
+    readers = build_readers(args)
+    if not readers:
+        print("No sensor ports provided -- pass at least one of --imu-port, "
+            "--uwb-port, --mmwave-port, --wifi-port, --rfid-port.")
+        return
 
+    for i in range(args.trials):
         record_trial(readers, args.gesture, args.person, args.duration, args.auto)
 
 

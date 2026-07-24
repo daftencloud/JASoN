@@ -31,6 +31,7 @@ Either run your gesture project from the py39 env too, or see the
 README for a note on reconciling the two environments.
 """
 
+import atexit
 import queue
 import re
 import subprocess
@@ -47,7 +48,7 @@ STATUS_PATTERN = re.compile(r"status:\s*(\w+)")
 class UwbReader(BaseSensorReader):
     def __init__(self, controller_port: str, controlee_port: str,
                  uwb_lab_tools_path: str, channel: int = 5,
-                 preamble_idx: int = 9, name: str = "uwb"):
+                 preamble_idx: int = 11, name: str = "uwb"):
         # NOTE: this reader's constructor shape differs from the other
         # readers (needs two ports, not one) -- collect.py/etc. need a
         # small adjustment to pass both. See README for the updated
@@ -66,6 +67,61 @@ class UwbReader(BaseSensorReader):
         self._last_status = None
 
     def connect(self):
+        """
+        Starts continuous ranging, matching the lab's own design:
+        collect_dataset.py starts ranging ONCE and keeps it running
+        for an entire session, only marking trial boundaries around
+        the continuous stream -- it does NOT restart ranging per
+        trial. Our earlier version killed and relaunched these
+        subprocesses on every single trial, which is almost certainly
+        what caused the flaky 0-sample trials: each relaunch is a
+        fresh race condition on the USB ports.
+
+        Now: if ranging is already running (from a previous trial in
+        this same session), this is a no-op -- we just keep using the
+        same live connection. Only the FIRST call in a session
+        actually launches the subprocesses.
+        """
+        if self.is_connected:
+            # Already ranging from a previous trial -- reuse the live
+            # connection, but clear out any readings that piled up
+            # during the idle time between trials (e.g. while you were
+            # getting ready for the next gesture), so this trial
+            # starts clean instead of possibly returning a stale
+            # leftover distance as its first sample.
+            try:
+                while True:
+                    self._line_queue.get_nowait()
+            except queue.Empty:
+                pass
+            return
+
+        # If we get here on anything other than the very first call in
+        # a session, the previous ranging subprocess died unexpectedly
+        # -- that's the real cause of the repeated relaunch/lock-on
+        # cycle you're seeing every trial instead of just once. Print
+        # diagnostics so we can see WHY instead of guessing.
+        if self._controller_proc is not None:
+            print(f"  [UWB] NOTE: previous controller process is no longer "
+                  f"alive (exit code: {self._controller_proc.poll()}) -- "
+                  f"relaunching. This is why lock-on is happening again "
+                  f"instead of reusing the prior connection.")
+            try:
+                stderr_output = self._controller_proc.stderr.read()
+                if stderr_output:
+                    print(f"  [UWB] Controller stderr: {stderr_output[-500:]}")
+            except Exception:
+                pass
+        if self._controlee_proc is not None:
+            print(f"  [UWB] NOTE: previous controlee process exit code: "
+                  f"{self._controlee_proc.poll()}")
+            try:
+                stderr_output = self._controlee_proc.stderr.read()
+                if stderr_output:
+                    print(f"  [UWB] Controlee stderr: {stderr_output[-500:]}")
+            except Exception:
+                pass
+
         run_script = f"{self.uwb_lab_tools_path}/scripts/fira/run_fira_twr/run_fira_twr.py"
 
         # Start the controlee first (it just waits and responds).
@@ -76,10 +132,20 @@ class UwbReader(BaseSensorReader):
              "--channel", str(self.channel),
              "--preamble-idx", str(self.preamble_idx),
              "--aoa-report", "all-disabled",
-             "-t", "3600"],  # long duration -- we control the actual
-                              # session length from collect.py, not here
+             "--slot-span", "2400",
+             "--slots-per-rr", "6",
+             "--ranging-span", "20",  # ~50Hz -- matches the teammate's
+                                       # proven working config. Without
+                                       # this, the script falls back to
+                                       # its slow default (~5Hz), giving
+                                       # far fewer samples per trial and
+                                       # more time spent on initial
+                                       # RangingRxTimeout noise before lock-on.
+             "-t", "3600"],  # long duration -- covers a full multi-trial
+                              # collection session, not just one trial
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
         )
         time.sleep(1.0)  # give the controlee a moment to be ready
 
@@ -90,9 +156,12 @@ class UwbReader(BaseSensorReader):
              "--channel", str(self.channel),
              "--preamble-idx", str(self.preamble_idx),
              "--aoa-report", "all-disabled",
+             "--slot-span", "2400",
+             "--slots-per-rr", "6",
+             "--ranging-span", "20",
              "-t", "3600"],
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             text=True,
             bufsize=1,
         )
@@ -102,13 +171,62 @@ class UwbReader(BaseSensorReader):
         )
         self._reader_thread.start()
 
-        time.sleep(2.0)  # let ranging actually start before returning
+        # Register a real cleanup to run when the whole Python process
+        # exits (e.g. collect.py finishes all --trials), regardless of
+        # how many times close() gets called mid-session. Registered
+        # only once, the first time we actually connect.
+        atexit.register(self._real_close)
+
+        # DON'T just sleep a fixed amount and hope ranging is ready --
+        # real observed behavior is that the boards print a long
+        # stretch of RangingRxTimeout failures (sometimes 20-30+
+        # seconds worth) before ranging actually locks on and starts
+        # reporting real "status: Ok" measurements. A short fixed
+        # sleep here was the actual cause of trial 1 consistently
+        # getting 0 samples -- recording started before ranging had
+        # locked on at all. Instead, actively wait for the first real
+        # measurement to appear, with a generous timeout.
+        print("  [UWB] Waiting for ranging to lock on (this can take up to "
+              "30s on first connect)...")
+        locked_on = False
+        wait_deadline = time.time() + 40.0
+        last_status = None
+        while time.time() < wait_deadline:
+            try:
+                line = self._line_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+            status_match = STATUS_PATTERN.search(line)
+            if status_match:
+                last_status = status_match.group(1)
+            if last_status == "Ok" and DISTANCE_PATTERN.search(line):
+                locked_on = True
+                break
+
+        if locked_on:
+            print("  [UWB] Ranging locked on.")
+        else:
+            print("  [UWB] WARNING: ranging did not lock on within 40s -- "
+                  "proceeding anyway, but this trial and possibly the next "
+                  "few may get 0 samples. Check board positioning/distance.")
 
     def _read_stdout_loop(self):
         for line in self._controller_proc.stdout:
             self._line_queue.put(line)
 
     def close(self):
+        """
+        Soft close -- does NOT actually kill the ranging subprocesses.
+        collect.py calls close() after every trial for every sensor
+        (matching the other readers' per-trial lifecycle), but for
+        UWB specifically we want the ranging session to stay alive
+        across trials -- see the note in connect(). Real cleanup
+        happens automatically at program exit via _real_close(),
+        registered through atexit.
+        """
+        pass
+
+    def _real_close(self):
         for proc in (self._controller_proc, self._controlee_proc):
             if proc is not None and proc.poll() is None:
                 proc.terminate()

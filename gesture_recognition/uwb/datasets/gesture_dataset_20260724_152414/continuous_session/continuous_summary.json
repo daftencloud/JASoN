@@ -1,0 +1,25 @@
+{
+  "chunks": [
+    {
+      "chunk_index": 1,
+      "continuous_dir": "/Users/sairamvottikonda/COSMOS-Cluster10/final_project/gesture_recognition/uwb/datasets/gesture_dataset_20260724_152414/continuous_session/chunk_001",
+      "controlee_log": "/Users/sairamvottikonda/COSMOS-Cluster10/final_project/gesture_recognition/uwb/datasets/gesture_dataset_20260724_152414/continuous_session/chunk_001/controlee/controlee_terminal_log.txt",
+      "controller_log": "/Users/sairamvottikonda/COSMOS-Cluster10/final_project/gesture_recognition/uwb/datasets/gesture_dataset_20260724_152414/continuous_session/chunk_001/controller/controller_terminal_log.txt",
+      "reason": "initial",
+      "started_at": "2026-07-24 15:24:17"
+    }
+  ],
+  "controlee_return_code": null,
+  "controller": {
+    "max_cm": 62.0,
+    "mean_cm": 25.647735708982925,
+    "median_cm": 26.0,
+    "min_cm": 1.0,
+    "ok_samples": 2694,
+    "total_samples": 2713
+  },
+  "controller_return_code": null,
+  "finished_at": "2026-07-24 15:25:14",
+  "interrupted": true,
+  "stream_restarts": 0
+}

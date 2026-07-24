@@ -1,0 +1,4 @@
+$ /opt/anaconda3/envs/py39/bin/python /Users/sairamvottikonda/COSMOS-Cluster10/final_project/gesture_recognition/uwb/uwb-qorvo-tools/scripts/device/reset_device/reset_device.py -p /dev/cu.usbmodemC55B4699A7AB1
+15:15:14.072 CRITICAL:	UciComError.TimeoutError (0x3): No response from the device (4s timeout)
+return_code=153
+
