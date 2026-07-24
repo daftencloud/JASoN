@@ -7,7 +7,6 @@ so the label set never drifts between files.
 """
 
 GESTURES = [
-    "rest",
     "pull",
     "push",
     "clockwise",
@@ -49,4 +48,30 @@ EXPECTED_STRONGEST_SENSOR = {
                           # in practice -- relying on mmwave alone instead
     "open_close_fist": ["rfid"],
     "palm_up_down": ["mmwave", "imu"],
+}
+
+# Discrete (one-shot) vs periodic (repeated/continuous) gesture typing,
+# per the final project design hints. This matters for how a gesture
+# should be performed during collection: discrete gestures should be
+# done ONCE near the center of the recording window, periodic gestures
+# should be repeated naturally throughout the window. It also matters
+# for evaluation -- if you ever collect long continuous recordings of
+# a periodic gesture, split train/test by full recording or by
+# collector, never by overlapping windows from the same recording.
+GESTURE_TYPE = {
+    "pull": "discrete",
+    "push": "discrete",
+    "clockwise": "discrete",
+    "counterclockwise": "discrete",
+    "left": "discrete",
+    "right": "discrete",
+    "bye_bye": "periodic",
+    "one_arm_boxing": "periodic",
+    "clapping": "periodic",
+    "two_arm_boxing": "periodic",
+    "t_arm": "discrete",  # held pose, not repeated motion
+    "raise_arms": "discrete",
+    "soli": "periodic",
+    "open_close_fist": "periodic",
+    "palm_up_down": "periodic",
 }

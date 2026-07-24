@@ -19,14 +19,15 @@ chosen model was trained on -- check the model's feature_set name
 import argparse
 import pickle
 import time
+from collections import Counter
 
 import pandas as pd
 
 from sensors import ImuReader, UwbReader, MmwaveReader, WifiReader, RfidReader
 from extract_features import EXTRACTORS
 
-WINDOW_SECONDS = 5.0
-PREDICT_INTERVAL_SECONDS = 1.0
+WINDOW_SECONDS = 1.5
+PREDICT_INTERVAL_SECONDS = 0.3
 
 
 def build_readers(args):
@@ -55,6 +56,12 @@ def main():
     parser.add_argument("--wifi-port")
     parser.add_argument("--rfid-port")
     parser.add_argument("--rfid-tags")
+    parser.add_argument("--vote-window", type=int, default=5,
+                         help="Number of recent predictions to majority-vote over, "
+                              "matching the lab's real-time stability pattern -- "
+                              "raw single-window predictions can flicker between "
+                              "classes, voting smooths that out at the cost of "
+                              "slightly slower response to a real gesture change.")
     args = parser.parse_args()
 
     with open(args.model, "rb") as f:
@@ -78,6 +85,7 @@ def main():
 
     buffers = {name: [] for name in readers}
     last_predict_time = time.time()
+    recent_predictions = []
 
     try:
         while True:
@@ -111,7 +119,17 @@ def main():
                     row = row[feature_columns]
 
                     prediction = model.predict(row)[0]
-                    print(f"[{time.strftime('%H:%M:%S')}] Predicted gesture: {prediction}")
+                    recent_predictions.append(prediction)
+                    if len(recent_predictions) > args.vote_window:
+                        recent_predictions.pop(0)
+
+                    if len(recent_predictions) >= args.vote_window:
+                        voted = Counter(recent_predictions).most_common(1)[0][0]
+                        print(f"[{time.strftime('%H:%M:%S')}] Raw: {prediction:20s} "
+                              f"Voted ({args.vote_window}-window): {voted}")
+                    else:
+                        print(f"[{time.strftime('%H:%M:%S')}] Raw: {prediction} "
+                              f"(warming up vote window: {len(recent_predictions)}/{args.vote_window})")
 
     except KeyboardInterrupt:
         print("\nStopping...")

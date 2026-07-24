@@ -1,75 +1,151 @@
 """
 uwb_reader.py
 ----------------------------------------------------
-Reads range measurements from your DWM3001C UWB tag module.
+Reads live ranging distance between two DWM3001CDK boards, using the
+COURSE'S OWN VERIFIED SCRIPT (run_fira_twr.py from wshanmu/UWB_lab) as
+a subprocess, rather than reimplementing Qorvo's binary UCI protocol
+from scratch. That protocol is genuinely complex (structured binary
+commands, not plain text), and the course already has a working,
+tested implementation -- reusing it directly is far more reliable than
+a from-scratch reimplementation.
 
-IMPORTANT HARDWARE NOTE: DWM3001C modules ship pre-flashed with
-Qorvo's ranging demo firmware and are controlled over a UART
-shell/AT-command interface -- the exact command/output format depends
-on which firmware image is flashed on your specific boards. I don't
-have a verified format for your boards, so `read_sample()` below has
-ONE clearly marked TODO. Everything else in this project (feature
-extraction, training, evaluation) is complete and works the moment
-this returns real data in the documented shape.
+REQUIRES: the UWB_lab repo cloned and set up per the lab instructions
+(conda env "py39", uwb-qorvo-tools installed via pip install -e .).
+Point `uwb_lab_tools_path` at your cloned repo's `uwb-qorvo-tools`
+folder, e.g. ~/UWB_lab/uwb-qorvo-tools.
 
-TO FILL THIS IN:
-  1. Connect one UWB module directly via USB, open a serial terminal
-     at 115200 baud (`screen /dev/tty.usbmodemXXXX 115200` on Mac, or
-     the Arduino Serial Monitor).
-  2. Power on the two anchor modules and observe what the tag module
-     prints once ranging is active.
-  3. Update `read_sample()` below to parse whatever you actually see.
-  4. If you need to SEND a command to trigger each reading (rather
-     than it streaming automatically), send it once in `connect()`
-     via `self._ser.write(b"<command>\\n")`.
+HOW IT WORKS: connect() launches the controlee (the board that just
+responds) and the controller (the board that prints ranging results)
+as two background subprocesses, both running run_fira_twr.py with a
+long duration. A background thread continuously reads the
+controller's stdout and queues up parsed distance readings.
+read_sample() drains that queue non-blocking, matching every other
+reader's interface.
 
-Expected output shape once implemented -- a dict with:
-    {"timestamp_ms": <float>, "range_anchor1": <float|None>,
-     "range_anchor2": <float|None>}
+NOTE: this reader launches run_fira_twr.py using the SAME Python
+interpreter/environment that's currently running (sys.executable) --
+if you're running your gesture project's collect.py etc. from the
+"cosmos-ds" conda env rather than "py39", this will likely fail since
+the required uwb-uci/uqt-utils packages are only installed in "py39".
+Either run your gesture project from the py39 env too, or see the
+README for a note on reconciling the two environments.
 """
 
+import queue
+import re
+import subprocess
+import sys
+import threading
 import time
 
 from .base_reader import BaseSensorReader
 
+DISTANCE_PATTERN = re.compile(r"distance:\s*([\d.]+)\s*cm")
+STATUS_PATTERN = re.compile(r"status:\s*(\w+)")
+
 
 class UwbReader(BaseSensorReader):
-    def __init__(self, port: str, baud: int = 115200):
-        super().__init__(port, baud, name="uwb")
+    def __init__(self, controller_port: str, controlee_port: str,
+                 uwb_lab_tools_path: str, channel: int = 5,
+                 preamble_idx: int = 9, name: str = "uwb"):
+        # NOTE: this reader's constructor shape differs from the other
+        # readers (needs two ports, not one) -- collect.py/etc. need a
+        # small adjustment to pass both. See README for the updated
+        # --uwb-controller-port / --uwb-controlee-port flags.
+        super().__init__(controller_port, baud=None, name=name)
+        self.controller_port = controller_port
+        self.controlee_port = controlee_port
+        self.uwb_lab_tools_path = uwb_lab_tools_path
+        self.channel = channel
+        self.preamble_idx = preamble_idx
+
+        self._controlee_proc = None
+        self._controller_proc = None
+        self._line_queue = queue.Queue()
+        self._reader_thread = None
+        self._last_status = None
+
+    def connect(self):
+        run_script = f"{self.uwb_lab_tools_path}/scripts/fira/run_fira_twr/run_fira_twr.py"
+
+        # Start the controlee first (it just waits and responds).
+        self._controlee_proc = subprocess.Popen(
+            [sys.executable, run_script,
+             "-p", self.controlee_port,
+             "--controlee",
+             "--channel", str(self.channel),
+             "--preamble-idx", str(self.preamble_idx),
+             "--aoa-report", "all-disabled",
+             "-t", "3600"],  # long duration -- we control the actual
+                              # session length from collect.py, not here
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        time.sleep(1.0)  # give the controlee a moment to be ready
+
+        # Start the controller (this one prints ranging results).
+        self._controller_proc = subprocess.Popen(
+            [sys.executable, run_script,
+             "-p", self.controller_port,
+             "--channel", str(self.channel),
+             "--preamble-idx", str(self.preamble_idx),
+             "--aoa-report", "all-disabled",
+             "-t", "3600"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            bufsize=1,
+        )
+
+        self._reader_thread = threading.Thread(
+            target=self._read_stdout_loop, daemon=True
+        )
+        self._reader_thread.start()
+
+        time.sleep(2.0)  # let ranging actually start before returning
+
+    def _read_stdout_loop(self):
+        for line in self._controller_proc.stdout:
+            self._line_queue.put(line)
+
+    def close(self):
+        for proc in (self._controller_proc, self._controlee_proc):
+            if proc is not None and proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+
+    @property
+    def is_connected(self) -> bool:
+        return self._controller_proc is not None and self._controller_proc.poll() is None
 
     def read_sample(self):
-        line = self.readline_raw()
-        if not line:
+        got_distance = None
+        # Drain whatever lines are currently queued, tracking the most
+        # recent status so we only report distances that came with a
+        # real "Ok" status (matching what the lab's own ranging logic
+        # treats as a valid measurement -- RangingRxTimeout means no
+        # measurement, not zero distance).
+        try:
+            while True:
+                line = self._line_queue.get_nowait()
+
+                status_match = STATUS_PATTERN.search(line)
+                if status_match:
+                    self._last_status = status_match.group(1)
+
+                distance_match = DISTANCE_PATTERN.search(line)
+                if distance_match and self._last_status == "Ok":
+                    got_distance = float(distance_match.group(1))
+        except queue.Empty:
+            pass
+
+        if got_distance is None:
             return None
-
-        # ============================================================
-        # TODO (hardware-specific): replace this placeholder parse with
-        # your DWM3001C's actual output format. This is a starting
-        # guess at a common Qorvo demo pattern (e.g. "AN0:1.23,AN1:2.01")
-        # -- UNVERIFIED until you check it against real Serial output.
-        # ============================================================
-        range_anchor1 = None
-        range_anchor2 = None
-
-        for part in line.split(","):
-            part = part.strip()
-            if part.startswith("AN0:"):
-                try:
-                    range_anchor1 = float(part[4:])
-                except ValueError:
-                    pass
-            elif part.startswith("AN1:"):
-                try:
-                    range_anchor2 = float(part[4:])
-                except ValueError:
-                    pass
-
-        if range_anchor1 is None and range_anchor2 is None:
-            return None  # this line wasn't a ranging result -- likely
-                          # a log/status line from the module, ignore it
 
         return {
             "timestamp_ms": time.time() * 1000,
-            "range_anchor1": range_anchor1,
-            "range_anchor2": range_anchor2,
+            "distance_cm": got_distance,
         }

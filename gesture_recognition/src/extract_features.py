@@ -77,19 +77,35 @@ def extract_imu_features(df: pd.DataFrame) -> dict:
 
 
 def extract_uwb_features(df: pd.DataFrame) -> dict:
+    """
+    Extracts features from a single controller-controlee distance
+    stream (distance_cm column), matching uwb_reader.py's real output
+    format from the DWM3001CDK FiRa TWR ranging demo.
+    """
     feats = {}
-    for col in ["range_anchor1", "range_anchor2"]:
-        if col not in df.columns:
-            continue
-        vals = df[col].dropna().tolist()
-        stats = _basic_stats(vals, f"uwb_{col}")
-        feats.update(stats)
-        # crude slope: last - first over the trial
-        numeric_vals = [v for v in vals if v is not None]
-        if len(numeric_vals) > 1:
-            feats[f"uwb_{col}_slope"] = numeric_vals[-1] - numeric_vals[0]
-        else:
-            feats[f"uwb_{col}_slope"] = 0
+    if "distance_cm" not in df.columns:
+        return feats
+
+    vals = df["distance_cm"].dropna().tolist()
+    feats.update(_basic_stats(vals, "uwb_distance"))
+
+    numeric_vals = [v for v in vals if v is not None]
+    if len(numeric_vals) > 1:
+        feats["uwb_distance_slope"] = numeric_vals[-1] - numeric_vals[0]
+        # Number of direction changes -- a simple motion-shape feature
+        # useful for distinguishing repetitive gestures (clapping) from
+        # single sweeps (a T-arm hold), per the lab's own feature
+        # engineering suggestions.
+        diffs = [numeric_vals[i+1] - numeric_vals[i] for i in range(len(numeric_vals) - 1)]
+        direction_changes = sum(
+            1 for i in range(len(diffs) - 1)
+            if diffs[i] * diffs[i+1] < 0
+        )
+        feats["uwb_direction_changes"] = direction_changes
+    else:
+        feats["uwb_distance_slope"] = 0
+        feats["uwb_direction_changes"] = 0
+
     return feats
 
 

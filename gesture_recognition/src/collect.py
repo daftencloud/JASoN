@@ -40,8 +40,8 @@ def build_readers(args):
     readers = {}
     if args.imu_port:
         readers["imu"] = ImuReader(args.imu_port)
-    if args.uwb_port:
-        readers["uwb"] = UwbReader(args.uwb_port)
+    if args.uwb_controller_port and args.uwb_controlee_port:
+        readers["uwb"] = UwbReader(args.uwb_controller_port, args.uwb_controlee_port, args.uwb_lab_tools_path, channel=args.uwb_channel, preamble_idx=args.uwb_preamble_idx)
     if args.mmwave_port:
         readers["mmwave"] = MmwaveReader(args.mmwave_port, cfg_path=args.mmwave_cfg)
     if args.wifi_port:
@@ -132,7 +132,11 @@ def main():
     parser.add_argument("--duration", type=float, default=2.5)
     parser.add_argument("--trials", type=int, default=20)
     parser.add_argument("--imu-port")
-    parser.add_argument("--uwb-port")
+    parser.add_argument("--uwb-controller-port")
+    parser.add_argument("--uwb-controlee-port")
+    parser.add_argument("--uwb-lab-tools-path", default="/Users/sairamvottikonda/UWB_lab/uwb-qorvo-tools")
+    parser.add_argument("--uwb-channel", type=int, default=5)
+    parser.add_argument("--uwb-preamble-idx", type=int, default=9)
     parser.add_argument("--mmwave-port")
     parser.add_argument("--mmwave-cfg", help="Path to a .cfg file from mmwave_lab")
     parser.add_argument("--wifi-port")
