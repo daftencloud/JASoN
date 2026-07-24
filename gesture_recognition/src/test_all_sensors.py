@@ -56,7 +56,11 @@ def test_reader(name, reader, duration=3.0):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--imu-port")
-    parser.add_argument("--uwb-port")
+    parser.add_argument("--uwb-controller-port")
+    parser.add_argument("--uwb-controlee-port")
+    parser.add_argument("--uwb-lab-tools-path", default="/Users/sairamvottikonda/UWB_lab/uwb-qorvo-tools")
+    parser.add_argument("--uwb-channel", type=int, default=5)
+    parser.add_argument("--uwb-preamble-idx", type=int, default=9)
     parser.add_argument("--mmwave-port")
     parser.add_argument("--mmwave-cfg", help="Path to a .cfg file from mmwave_lab")
     parser.add_argument("--wifi-port")
@@ -68,8 +72,8 @@ def main():
 
     if args.imu_port:
         results["imu"] = test_reader("IMU", ImuReader(args.imu_port))
-    if args.uwb_port:
-        results["uwb"] = test_reader("UWB", UwbReader(args.uwb_port))
+    if args.uwb_controller_port and args.uwb_controlee_port:
+        results["uwb"] = test_reader("UWB", UwbReader(args.uwb_controller_port, args.uwb_controlee_port, args.uwb_lab_tools_path, channel=args.uwb_channel, preamble_idx=args.uwb_preamble_idx))
     if args.mmwave_port:
         results["mmwave"] = test_reader("mmWave", MmwaveReader(args.mmwave_port, cfg_path=args.mmwave_cfg))
     if args.wifi_port:
