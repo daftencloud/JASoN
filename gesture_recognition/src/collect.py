@@ -43,7 +43,7 @@ def build_readers(args):
     if args.uwb_controller_port and args.uwb_controlee_port:
         readers["uwb"] = UwbReader(args.uwb_controller_port, args.uwb_controlee_port, args.uwb_lab_tools_path, channel=args.uwb_channel, preamble_idx=args.uwb_preamble_idx)
     if args.mmwave_port:
-        readers["mmwave"] = MmwaveReader(args.mmwave_port)
+        readers["mmwave"] = MmwaveReader(args.mmwave_port, cfg_path=args.mmwave_cfg)
     if args.wifi_port:
         readers["wifi"] = WifiReader(args.wifi_port)
     if args.rfid_port:
@@ -143,6 +143,7 @@ def main():
     parser.add_argument("--uwb-channel", type=int, default=5)
     parser.add_argument("--uwb-preamble-idx", type=int, default=9)
     parser.add_argument("--mmwave-port")
+    parser.add_argument("--mmwave-cfg", help="Path to a .cfg file from mmwave_lab")
     parser.add_argument("--wifi-port")
     parser.add_argument("--rfid-port")
     parser.add_argument("--rfid-tags", help="comma-separated EPC hex strings, "

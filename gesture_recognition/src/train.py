@@ -32,9 +32,21 @@ def load_features(path):
     return X, y, groups
 
 
-def make_models():
+def safe_knn_k(y, default=5):
+    """
+    KNN crashes if k exceeds the number of training samples in the
+    smallest class (this happened when a gesture only had a handful of
+    trials, e.g. 4 -- after a train/test split, even fewer remained).
+    Caps k safely below the smallest class count instead.
+    """
+    min_class_count = y.value_counts().min()
+    return max(1, min(default, min_class_count - 1))
+
+
+def make_models(y=None):
+    k = safe_knn_k(y) if y is not None else 5
     return {
-        "knn": make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=5)),
+        "knn": make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=k)),
         "random_forest": RandomForestClassifier(n_estimators=200, random_state=42),
     }
 
@@ -55,7 +67,7 @@ def main():
             print(f"Skipping {feature_set_name}: no usable rows/columns")
             continue
 
-        for model_name, model in make_models().items():
+        for model_name, model in make_models(y).items():
             model.fit(X, y)  # train on ALL data here -- evaluate.py handles
                                # the actual train/test and held-out-person
                                # splits used for reporting accuracy

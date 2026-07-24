@@ -41,9 +41,22 @@ def load_features(path):
     return X, y, groups
 
 
-def make_models():
+def safe_knn_k(y, default=5):
+    """Same fix as train.py -- see that file's comment for why this
+    is needed. Uses a more conservative cap here since evaluate.py
+    further splits data into train/test folds, shrinking per-class
+    counts even more than train.py's full-dataset fit."""
+    min_class_count = y.value_counts().min()
+    # Account for train/test split (roughly 75% train) and held-out-
+    # person split (removes one person's trials from training too).
+    estimated_min_train_count = max(1, int(min_class_count * 0.7))
+    return max(1, min(default, estimated_min_train_count - 1))
+
+
+def make_models(y=None):
+    k = safe_knn_k(y) if y is not None else 5
     return {
-        "knn": make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=5)),
+        "knn": make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=k)),
         "random_forest": RandomForestClassifier(n_estimators=200, random_state=42),
     }
 
@@ -99,7 +112,7 @@ def main():
         if X.shape[1] == 0 or len(y) == 0:
             continue
 
-        for model_name, model in make_models().items():
+        for model_name, model in make_models(y).items():
             label = f"{feature_set_name}/{model_name}"
             acc_random, y_test, preds = evaluate_random_split(X, y, model)
             acc_person = evaluate_held_out_person(X, y, groups, model)

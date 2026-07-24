@@ -1,7 +1,9 @@
 feature_set,model,random_split_accuracy,held_out_person_accuracy
-fused,knn,0.88,0.0
-fused,random_forest,0.88,0.0
-imu,knn,0.9,
-imu,random_forest,1.0,
+imu,random_forest,0.947,0.177
+fused,random_forest,0.933,0.131
+imu,knn,0.933,0.125
+fused,knn,0.967,0.115
 mmwave,knn,0.933,
 mmwave,random_forest,0.867,
+uwb,knn,1.0,
+uwb,random_forest,1.0,
