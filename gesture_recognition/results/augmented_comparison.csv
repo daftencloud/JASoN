@@ -1,0 +1,21 @@
+feature_set,model,test_accuracy,train_trials,test_trials
+imu,knn (real only),0.949,234,79
+imu,random_forest (real only),0.949,234,79
+imu,random_forest (augmented train),0.975,1170,79
+imu,mlp (real only),0.962,234,79
+imu,mlp (augmented train),0.987,1170,79
+uwb,knn (real only),0.735,100,34
+uwb,random_forest (real only),0.853,100,34
+uwb,random_forest (augmented train),0.824,500,34
+uwb,mlp (real only),0.676,100,34
+uwb,mlp (augmented train),0.735,500,34
+mmwave,knn (real only),0.828,85,29
+mmwave,random_forest (real only),0.862,85,29
+mmwave,random_forest (augmented train),0.862,425,29
+mmwave,mlp (real only),0.793,85,29
+mmwave,mlp (augmented train),0.793,425,29
+fused,knn (real only),0.911,369,124
+fused,random_forest (real only),0.927,369,124
+fused,random_forest (augmented train),0.935,1845,124
+fused,mlp (real only),0.935,369,124
+fused,mlp (augmented train),0.944,1845,124
