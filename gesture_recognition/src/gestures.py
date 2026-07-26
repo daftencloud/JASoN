@@ -22,7 +22,7 @@ GESTURES = [
     "soli",
     "open_close_fist",
     "palm_up_down",
-    "other"
+    "rest",
 ]
 
 # Which sensor(s) are expected to be most discriminative for each
