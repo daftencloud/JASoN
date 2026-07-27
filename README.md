@@ -2,6 +2,8 @@
 
 Our COSMOS Cluster 10 final project: a gesture recognition system using 3 working sensors (IMU, mmWave radar, UWB ranging) to recognize 15 gestures. Everything is pure Python except for firmware already flashed by the course labs (no custom firmware needed from us).
 
+## Our Members: Sairam, Akshat, Jonathan, and Navnith
+
 ## The idea
 
 Instead of one sensor trying to handle every gesture, each gesture is designed around whichever sensor is naturally best suited for it (per our original team plan):
