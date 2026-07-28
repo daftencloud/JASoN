@@ -42,6 +42,14 @@ WINDOW_SECONDS = 5.0
 PREDICT_INTERVAL_SECONDS = 1.0
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 
+# NOTE: with SCOPED specialists (each trained on only its own gestures
+# via train_scoped_specialists.py), a gesture-ownership boost is a
+# no-op -- every candidate a scoped specialist produces is already
+# "in its own domain" by construction, so the boost applies equally to
+# all 3 and never changes the ranking. The real fix for cross-domain
+# confusion is the margin-based confidence in predict_with_confidence()
+# below, which corrects for out-of-domain overconfidence directly.
+
 
 def load_specialist(model_filename):
     path = os.path.join(MODELS_DIR, model_filename)
@@ -55,8 +63,23 @@ def load_specialist(model_filename):
 
 
 def predict_with_confidence(bundle, feats: dict):
-    """Returns (predicted_gesture, confidence) for one specialist, or
-    (None, 0.0) if this specialist has no relevant features this cycle."""
+    """
+    Returns (predicted_gesture, confidence) for one specialist, or
+    (None, 0.0) if this specialist has no relevant features this cycle.
+
+    Uses the MARGIN between the top-1 and top-2 class probabilities as
+    "confidence", not raw top-1 probability. Why: with scoped
+    specialists (each trained on only its own 4-5 gestures), a
+    specialist asked about a gesture OUTSIDE its vocabulary (e.g. UWB
+    seeing "pull", which it was never trained on) still has to output
+    something -- and classifiers are well known to be overconfident on
+    out-of-domain inputs like this. Raw top-1 probability can end up
+    HIGHER for a confidently-wrong out-of-domain guess than for the
+    correct specialist's honestly-uncertain in-domain guess. The
+    margin between 1st and 2nd place is a much more reliable signal:
+    genuine confident predictions have a big gap, uncertain/OOD ones
+    tend to be more spread out even when the raw top-1 number looks OK.
+    """
     if bundle is None or not feats:
         return None, 0.0
 
@@ -70,8 +93,12 @@ def predict_with_confidence(bundle, feats: dict):
     if hasattr(model, "predict_proba"):
         proba = model.predict_proba(row)[0]
         classes = model.classes_
-        best_idx = proba.argmax()
-        return classes[best_idx], proba[best_idx]
+        sorted_idx = proba.argsort()[::-1]
+        best_idx = sorted_idx[0]
+        top1 = proba[best_idx]
+        top2 = proba[sorted_idx[1]] if len(sorted_idx) > 1 else 0.0
+        margin = top1 - top2
+        return classes[best_idx], margin
     else:
         # Fallback for models without predict_proba (e.g. some pipelines)
         pred = model.predict(row)[0]
@@ -124,6 +151,9 @@ def run_trigger_mode(readers, specialists, args):
                     continue
                 df = pd.DataFrame(samples)
                 feats = EXTRACTORS[name](df)
+                print(f"    [{name}] {len(samples)} raw samples collected this "
+                      f"capture. Key features: "
+                      f"{ {k: round(v, 3) for k, v in list(feats.items())[:6]} }")
                 gesture, confidence = predict_with_confidence(specialists[name], feats)
                 if gesture is not None:
                     candidates.append((name, gesture, confidence))
@@ -136,7 +166,7 @@ def run_trigger_mode(readers, specialists, args):
                 candidates, key=lambda c: c[2]
             )
             debug_str = ", ".join(
-                f"{name}={gesture}({conf:.2f})" for name, gesture, conf in candidates
+                f"{name}={gesture}(margin={conf:.2f})" for name, gesture, conf in candidates
             )
 
             if winner_confidence < args.confidence_threshold:
@@ -256,7 +286,11 @@ def main():
                 if not candidates:
                     continue
 
-                # Whichever specialist is most confident wins this round.
+                # Whichever specialist has the highest margin (top1-top2
+                # probability gap) wins -- this corrects for out-of-domain
+                # overconfidence, since scoped specialists asked about a
+                # gesture outside their vocabulary tend to show a smaller
+                # margin even if their raw top-1 number looks okay.
                 winner_sensor, winner_gesture, winner_confidence = max(
                     candidates, key=lambda c: c[2]
                 )

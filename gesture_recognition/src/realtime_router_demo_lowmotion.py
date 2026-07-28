@@ -42,6 +42,14 @@ WINDOW_SECONDS = 5.0
 PREDICT_INTERVAL_SECONDS = 1.0
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 
+# NOTE: with SCOPED specialists (each trained on only its own gestures
+# via train_scoped_specialists.py), a gesture-ownership boost is a
+# no-op -- every candidate a scoped specialist produces is already
+# "in its own domain" by construction, so the boost applies equally to
+# all 3 and never changes the ranking. The real fix for cross-domain
+# confusion is the margin-based confidence in predict_with_confidence()
+# below, which corrects for out-of-domain overconfidence directly.
+
 
 def load_specialist(model_filename):
     path = os.path.join(MODELS_DIR, model_filename)
@@ -119,11 +127,30 @@ def run_trigger_mode(readers, specialists, args):
                         buffers[name].append(sample)
 
             candidates = []
+            imu_ax_std = None  # tracked separately -- used below as a
+                                # "how much real wrist motion happened"
+                                # signal, independent of what IMU's own
+                                # top-class guess was.
+            MIN_SAMPLES = 20  # a capture with fewer real samples than
+                               # this has essentially no real signal --
+                               # e.g. we saw UWB get 1 sample and still
+                               # report 95% confidence, which is a false
+                               # positive, not a real detection.
             for name, samples in buffers.items():
                 if not samples or name not in EXTRACTORS:
                     continue
+                if len(samples) < MIN_SAMPLES:
+                    print(f"    [{name}] only {len(samples)} raw samples -- "
+                          f"too few for a real reading, skipping this specialist "
+                          f"this capture.")
+                    continue
                 df = pd.DataFrame(samples)
                 feats = EXTRACTORS[name](df)
+                if name == "imu":
+                    imu_ax_std = feats.get("imu_ax_std")
+                print(f"    [{name}] {len(samples)} raw samples collected this "
+                      f"capture. Key features: "
+                      f"{ {k: round(v, 3) for k, v in list(feats.items())[:6]} }")
                 gesture, confidence = predict_with_confidence(specialists[name], feats)
                 if gesture is not None:
                     candidates.append((name, gesture, confidence))
@@ -132,9 +159,50 @@ def run_trigger_mode(readers, specialists, args):
                 print("  No sensor produced enough data this capture -- try again.\n")
                 continue
 
-            winner_sensor, winner_gesture, winner_confidence = max(
-                candidates, key=lambda c: c[2]
-            )
+            # LOW-MOTION GATE, based on real evidence from testing: when
+            # imu_ax_std is very low (little to no wrist motion), the
+            # true gesture is almost always rest, or a fine hand-only
+            # motion (soli/open_close_fist/palm_up_down) that IMU can't
+            # sense anyway. In this regime, UWB has been repeatedly
+            # observed to confidently guess something wrong (it can
+            # never say "nothing happening"), even overriding a correct
+            # IMU "rest" reading. So: when motion is low, UWB's vote is
+            # DROPPED entirely, and we trust mmWave (which CAN detect
+            # fine hand motion) if it's reasonably confident, else rest.
+            LOW_MOTION_THRESHOLD = 0.2
+            if imu_ax_std is not None and imu_ax_std < LOW_MOTION_THRESHOLD:
+                mmwave_candidate = next((c for c in candidates if c[0] == "mmwave"), None)
+                if mmwave_candidate and mmwave_candidate[2] >= 0.4:
+                    winner_sensor, winner_gesture, winner_confidence = mmwave_candidate
+                else:
+                    winner_sensor, winner_gesture, winner_confidence = (
+                        "imu", "rest", imu_ax_std
+                    )
+                debug_str = ", ".join(
+                    f"{name}={gesture}({conf:.2f})" for name, gesture, conf in candidates
+                )
+                print(f"  [low-motion gate active: imu_ax_std={imu_ax_std:.3f} < "
+                      f"{LOW_MOTION_THRESHOLD} -- UWB vote dropped]")
+                print(f"  All: [{debug_str}]")
+                print(f"  -> RESULT: {winner_gesture} (via {winner_sensor})\n")
+                continue
+
+            # IMU saying "rest" means "not much wrist motion detected" --
+            # which is EXPECTED and uninformative during fine hand-only
+            # gestures (soli, open_close_fist, palm_up_down all involve
+            # almost no wrist movement). It shouldn't be treated as
+            # evidence AGAINST another sensor's real positive detection.
+            # If another sensor has a real (non-rest) guess, prefer that
+            # over IMU's rest, regardless of raw confidence.
+            non_rest_candidates = [c for c in candidates if c[1] != "rest"]
+            if non_rest_candidates:
+                winner_sensor, winner_gesture, winner_confidence = max(
+                    non_rest_candidates, key=lambda c: c[2]
+                )
+            else:
+                winner_sensor, winner_gesture, winner_confidence = max(
+                    candidates, key=lambda c: c[2]
+                )
             debug_str = ", ".join(
                 f"{name}={gesture}({conf:.2f})" for name, gesture, conf in candidates
             )
@@ -256,10 +324,18 @@ def main():
                 if not candidates:
                     continue
 
-                # Whichever specialist is most confident wins this round.
-                winner_sensor, winner_gesture, winner_confidence = max(
-                    candidates, key=lambda c: c[2]
-                )
+                # Same rest-exclusion rule as trigger mode -- IMU's
+                # "rest" is uninformative during fine hand-only gestures,
+                # shouldn't crowd out a real positive detection elsewhere.
+                non_rest_candidates = [c for c in candidates if c[1] != "rest"]
+                if non_rest_candidates:
+                    winner_sensor, winner_gesture, winner_confidence = max(
+                        non_rest_candidates, key=lambda c: c[2]
+                    )
+                else:
+                    winner_sensor, winner_gesture, winner_confidence = max(
+                        candidates, key=lambda c: c[2]
+                    )
 
                 if winner_confidence < args.confidence_threshold:
                     final_label = "rest / uncertain"

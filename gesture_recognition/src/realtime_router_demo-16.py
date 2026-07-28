@@ -42,6 +42,26 @@ WINDOW_SECONDS = 5.0
 PREDICT_INTERVAL_SECONDS = 1.0
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 
+# Which sensor OWNS each gesture, per the team's actual hardware
+# assignment spreadsheet. Raw confidence scores from each specialist
+# are NOT directly comparable -- IMU has far more training data than
+# UWB/mmWave, so its confidence runs higher across the board even on
+# gestures it was never designed to detect. This is why push/pull can
+# get stolen by UWB, or clockwise/clapping get stolen by IMU, even
+# when the "right" specialist's raw number is lower but still correct.
+# Boosting a specialist's score ONLY when its prediction matches its
+# OWN assigned gesture uses real domain knowledge to correct for this,
+# rather than trusting incomparable raw numbers.
+GESTURE_OWNER = {
+    "pull": "imu", "push": "imu", "left": "imu", "right": "imu",
+    "bye_bye": "imu", "one_arm_boxing": "imu", "rest": "imu",
+    "clockwise": "uwb", "counterclockwise": "uwb", "clapping": "uwb",
+    "two_arm_boxing": "uwb", "t_arm": "uwb",
+    "raise_arms": "mmwave", "soli": "mmwave",
+    "open_close_fist": "mmwave", "palm_up_down": "mmwave",
+}
+OWNERSHIP_BOOST = 0.35  # tune up if the wrong sensor still wins sometimes
+
 
 def load_specialist(model_filename):
     path = os.path.join(MODELS_DIR, model_filename)
@@ -52,6 +72,14 @@ def load_specialist(model_filename):
         bundle = pickle.load(f)
     print(f"  Loaded {model_filename}")
     return bundle
+
+
+def adjusted_score(sensor_name, gesture, confidence):
+    """Boosts a specialist's score when its prediction matches the
+    gesture it's actually designed to own. See GESTURE_OWNER comment."""
+    if GESTURE_OWNER.get(gesture) == sensor_name:
+        return confidence + OWNERSHIP_BOOST
+    return confidence
 
 
 def predict_with_confidence(bundle, feats: dict):
@@ -124,6 +152,9 @@ def run_trigger_mode(readers, specialists, args):
                     continue
                 df = pd.DataFrame(samples)
                 feats = EXTRACTORS[name](df)
+                print(f"    [{name}] {len(samples)} raw samples collected this "
+                      f"capture. Key features: "
+                      f"{ {k: round(v, 3) for k, v in list(feats.items())[:6]} }")
                 gesture, confidence = predict_with_confidence(specialists[name], feats)
                 if gesture is not None:
                     candidates.append((name, gesture, confidence))
@@ -133,10 +164,13 @@ def run_trigger_mode(readers, specialists, args):
                 continue
 
             winner_sensor, winner_gesture, winner_confidence = max(
-                candidates, key=lambda c: c[2]
+                candidates, key=lambda c: adjusted_score(c[0], c[1], c[2])
             )
             debug_str = ", ".join(
-                f"{name}={gesture}({conf:.2f})" for name, gesture, conf in candidates
+                f"{name}={gesture}({conf:.2f}"
+                + (f"+{OWNERSHIP_BOOST:.2f}" if GESTURE_OWNER.get(gesture) == name else "")
+                + ")"
+                for name, gesture, conf in candidates
             )
 
             if winner_confidence < args.confidence_threshold:
@@ -256,9 +290,11 @@ def main():
                 if not candidates:
                     continue
 
-                # Whichever specialist is most confident wins this round.
+                # Whichever specialist has the highest OWNERSHIP-ADJUSTED
+                # score wins -- see GESTURE_OWNER comment for why raw
+                # confidence alone isn't fair across specialists.
                 winner_sensor, winner_gesture, winner_confidence = max(
-                    candidates, key=lambda c: c[2]
+                    candidates, key=lambda c: adjusted_score(c[0], c[1], c[2])
                 )
 
                 if winner_confidence < args.confidence_threshold:

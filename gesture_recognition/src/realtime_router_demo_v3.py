@@ -42,6 +42,14 @@ WINDOW_SECONDS = 5.0
 PREDICT_INTERVAL_SECONDS = 1.0
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 
+# NOTE: with SCOPED specialists (each trained on only its own gestures
+# via train_scoped_specialists.py), a gesture-ownership boost is a
+# no-op -- every candidate a scoped specialist produces is already
+# "in its own domain" by construction, so the boost applies equally to
+# all 3 and never changes the ranking. The real fix for cross-domain
+# confusion is the margin-based confidence in predict_with_confidence()
+# below, which corrects for out-of-domain overconfidence directly.
+
 
 def load_specialist(model_filename):
     path = os.path.join(MODELS_DIR, model_filename)
@@ -124,6 +132,9 @@ def run_trigger_mode(readers, specialists, args):
                     continue
                 df = pd.DataFrame(samples)
                 feats = EXTRACTORS[name](df)
+                print(f"    [{name}] {len(samples)} raw samples collected this "
+                      f"capture. Key features: "
+                      f"{ {k: round(v, 3) for k, v in list(feats.items())[:6]} }")
                 gesture, confidence = predict_with_confidence(specialists[name], feats)
                 if gesture is not None:
                     candidates.append((name, gesture, confidence))
@@ -132,9 +143,22 @@ def run_trigger_mode(readers, specialists, args):
                 print("  No sensor produced enough data this capture -- try again.\n")
                 continue
 
-            winner_sensor, winner_gesture, winner_confidence = max(
-                candidates, key=lambda c: c[2]
-            )
+            # IMU saying "rest" means "not much wrist motion detected" --
+            # which is EXPECTED and uninformative during fine hand-only
+            # gestures (soli, open_close_fist, palm_up_down all involve
+            # almost no wrist movement). It shouldn't be treated as
+            # evidence AGAINST another sensor's real positive detection.
+            # If another sensor has a real (non-rest) guess, prefer that
+            # over IMU's rest, regardless of raw confidence.
+            non_rest_candidates = [c for c in candidates if c[1] != "rest"]
+            if non_rest_candidates:
+                winner_sensor, winner_gesture, winner_confidence = max(
+                    non_rest_candidates, key=lambda c: c[2]
+                )
+            else:
+                winner_sensor, winner_gesture, winner_confidence = max(
+                    candidates, key=lambda c: c[2]
+                )
             debug_str = ", ".join(
                 f"{name}={gesture}({conf:.2f})" for name, gesture, conf in candidates
             )
@@ -256,10 +280,18 @@ def main():
                 if not candidates:
                     continue
 
-                # Whichever specialist is most confident wins this round.
-                winner_sensor, winner_gesture, winner_confidence = max(
-                    candidates, key=lambda c: c[2]
-                )
+                # Same rest-exclusion rule as trigger mode -- IMU's
+                # "rest" is uninformative during fine hand-only gestures,
+                # shouldn't crowd out a real positive detection elsewhere.
+                non_rest_candidates = [c for c in candidates if c[1] != "rest"]
+                if non_rest_candidates:
+                    winner_sensor, winner_gesture, winner_confidence = max(
+                        non_rest_candidates, key=lambda c: c[2]
+                    )
+                else:
+                    winner_sensor, winner_gesture, winner_confidence = max(
+                        candidates, key=lambda c: c[2]
+                    )
 
                 if winner_confidence < args.confidence_threshold:
                     final_label = "rest / uncertain"

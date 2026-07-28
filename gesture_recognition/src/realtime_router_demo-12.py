@@ -42,6 +42,11 @@ WINDOW_SECONDS = 5.0
 PREDICT_INTERVAL_SECONDS = 1.0
 MODELS_DIR = os.path.join(os.path.dirname(__file__), "..", "models")
 
+# Simple direct override: if the IMU specialist's own top prediction is
+# one of these, just trust it directly and skip comparing against the
+# other specialists entirely.
+IMU_OVERRIDE_GESTURES = {"push", "open_close_fist", "soli"}
+
 
 def load_specialist(model_filename):
     path = os.path.join(MODELS_DIR, model_filename)
@@ -132,9 +137,15 @@ def run_trigger_mode(readers, specialists, args):
                 print("  No sensor produced enough data this capture -- try again.\n")
                 continue
 
-            winner_sensor, winner_gesture, winner_confidence = max(
-                candidates, key=lambda c: c[2]
-            )
+            # Simple direct override: if IMU's own prediction is one of
+            # the override gestures, trust it directly, skip comparison.
+            imu_candidate = next((c for c in candidates if c[0] == "imu"), None)
+            if imu_candidate and imu_candidate[1] in IMU_OVERRIDE_GESTURES:
+                winner_sensor, winner_gesture, winner_confidence = imu_candidate
+            else:
+                winner_sensor, winner_gesture, winner_confidence = max(
+                    candidates, key=lambda c: c[2]
+                )
             debug_str = ", ".join(
                 f"{name}={gesture}({conf:.2f})" for name, gesture, conf in candidates
             )
@@ -256,10 +267,15 @@ def main():
                 if not candidates:
                     continue
 
-                # Whichever specialist is most confident wins this round.
-                winner_sensor, winner_gesture, winner_confidence = max(
-                    candidates, key=lambda c: c[2]
-                )
+                # Simple direct override: if IMU's own prediction is one
+                # of the override gestures, trust it directly.
+                imu_candidate = next((c for c in candidates if c[0] == "imu"), None)
+                if imu_candidate and imu_candidate[1] in IMU_OVERRIDE_GESTURES:
+                    winner_sensor, winner_gesture, winner_confidence = imu_candidate
+                else:
+                    winner_sensor, winner_gesture, winner_confidence = max(
+                        candidates, key=lambda c: c[2]
+                    )
 
                 if winner_confidence < args.confidence_threshold:
                     final_label = "rest / uncertain"

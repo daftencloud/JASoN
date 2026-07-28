@@ -81,6 +81,16 @@ def extract_uwb_features(df: pd.DataFrame) -> dict:
     Extracts features from a single controller-controlee distance
     stream (distance_cm column), matching uwb_reader.py's real output
     format from the DWM3001CDK FiRa TWR ranging demo.
+
+    NOTE on clockwise vs counterclockwise: a single scalar distance
+    measurement (not a 2D position) may not fully capture rotational
+    direction -- a symmetric circular motion can produce a similar
+    distance envelope either way. The shape-based features below
+    (skewness, peak-timing) try to capture subtle asymmetry in HOW the
+    motion happens (e.g. faster acceleration one way than the other),
+    which may carry some real directional signal, but this is a
+    genuine sensing limitation, not guaranteed to fully resolve the
+    confusion -- report this honestly if it doesn't.
     """
     feats = {}
     if "distance_cm" not in df.columns:
@@ -90,21 +100,56 @@ def extract_uwb_features(df: pd.DataFrame) -> dict:
     feats.update(_basic_stats(vals, "uwb_distance"))
 
     numeric_vals = [v for v in vals if v is not None]
-    if len(numeric_vals) > 1:
+    n = len(numeric_vals)
+
+    if n > 1:
         feats["uwb_distance_slope"] = numeric_vals[-1] - numeric_vals[0]
-        # Number of direction changes -- a simple motion-shape feature
-        # useful for distinguishing repetitive gestures (clapping) from
-        # single sweeps (a T-arm hold), per the lab's own feature
-        # engineering suggestions.
-        diffs = [numeric_vals[i+1] - numeric_vals[i] for i in range(len(numeric_vals) - 1)]
+        diffs = [numeric_vals[i+1] - numeric_vals[i] for i in range(n - 1)]
         direction_changes = sum(
             1 for i in range(len(diffs) - 1)
             if diffs[i] * diffs[i+1] < 0
         )
         feats["uwb_direction_changes"] = direction_changes
+
+        # Skewness: is the distribution of values lopsided toward the
+        # start or end of the trial? Asymmetric motion (e.g. faster
+        # acceleration one rotational direction than the other) can
+        # show up here even when mean/std look similar.
+        mean_val = sum(numeric_vals) / n
+        std_val = (sum((v - mean_val) ** 2 for v in numeric_vals) / n) ** 0.5
+        if std_val > 1e-6:
+            skewness = sum((v - mean_val) ** 3 for v in numeric_vals) / (n * std_val ** 3)
+        else:
+            skewness = 0.0
+        feats["uwb_skewness"] = skewness
+
+        # Where in the trial (as a fraction 0-1) does the peak distance
+        # occur? A rotation that reaches its farthest point EARLY vs
+        # LATE in the motion is a real asymmetry a pure magnitude-based
+        # feature would miss entirely.
+        max_idx = numeric_vals.index(max(numeric_vals))
+        feats["uwb_peak_time_fraction"] = max_idx / (n - 1) if n > 1 else 0.5
+
+        # Similarly for the minimum.
+        min_idx = numeric_vals.index(min(numeric_vals))
+        feats["uwb_trough_time_fraction"] = min_idx / (n - 1) if n > 1 else 0.5
+
+        # Early-half vs late-half mean difference -- another simple
+        # asymmetry check.
+        half = n // 2
+        if half > 0:
+            early_mean = sum(numeric_vals[:half]) / half
+            late_mean = sum(numeric_vals[half:]) / (n - half)
+            feats["uwb_early_late_diff"] = late_mean - early_mean
+        else:
+            feats["uwb_early_late_diff"] = 0.0
     else:
         feats["uwb_distance_slope"] = 0
         feats["uwb_direction_changes"] = 0
+        feats["uwb_skewness"] = 0
+        feats["uwb_peak_time_fraction"] = 0.5
+        feats["uwb_trough_time_fraction"] = 0.5
+        feats["uwb_early_late_diff"] = 0
 
     return feats
 
