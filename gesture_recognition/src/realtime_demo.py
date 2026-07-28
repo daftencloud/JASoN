@@ -9,8 +9,7 @@ trained model from models/ to print live gesture predictions.
 Usage:
     python src/realtime_demo.py --model models/fused_random_forest.pkl \
         --imu-port /dev/tty.usbserial-AAA \
-        --uwb-controller-port /dev/tty.usbserial-BBB \
-        --uwb-controlee-port /dev/tty.usbserial-CCC
+        --uwb-port /dev/tty.usbserial-BBB
 
 Only pass ports for sensors that were part of the feature set the
 chosen model was trained on -- check the model's feature_set name
@@ -18,6 +17,7 @@ chosen model was trained on -- check the model's feature_set name
 """
 
 import argparse
+import os
 import pickle
 import time
 from collections import Counter
@@ -37,8 +37,9 @@ def build_readers(args):
         readers["imu"] = ImuReader(args.imu_port)
     if args.uwb_controller_port and args.uwb_controlee_port:
         readers["uwb"] = UwbReader(
-            args.uwb_controller_port, args.uwb_controlee_port, args.uwb_lab_tools_path,
-            channel=args.uwb_channel, preamble_idx=args.uwb_preamble_idx,
+            args.uwb_controller_port, args.uwb_controlee_port,
+            args.uwb_lab_tools_path, channel=args.uwb_channel,
+            preamble_idx=args.uwb_preamble_idx,
         )
     if args.mmwave_port:
         readers["mmwave"] = MmwaveReader(args.mmwave_port, cfg_path=args.mmwave_cfg)
@@ -50,13 +51,60 @@ def build_readers(args):
     return readers
 
 
+def run_trigger_mode(readers, model, feature_columns, args):
+    """Press Enter -> record for capture_duration seconds -> classify
+    once -> print result -> repeat. Matches the pattern that fixed the
+    'delay between doing the gesture and seeing the result' issue in
+    realtime_router_demo.py, adapted here for a single fused model."""
+    print(f"\nConnected. TRIGGER MODE -- press Enter, then perform ONE "
+          f"gesture during the {args.capture_duration}s capture window. "
+          f"Ctrl+C to stop.\n")
+
+    try:
+        while True:
+            input("Press Enter to capture a gesture...")
+
+            buffers = {name: [] for name in readers}
+            deadline = time.time() + args.capture_duration
+            while time.time() < deadline:
+                for name, reader in readers.items():
+                    sample = reader.read_sample()
+                    if sample is not None:
+                        buffers[name].append(sample)
+
+            row = {}
+            for name, samples in buffers.items():
+                if not samples or name not in EXTRACTORS:
+                    continue
+                df = pd.DataFrame(samples)
+                feats = EXTRACTORS[name](df)
+                row.update(feats)
+
+            if not row:
+                print("  No sensor produced enough data this capture -- try again.\n")
+                continue
+
+            input_row = pd.DataFrame([row])
+            for col in feature_columns:
+                if col not in input_row.columns:
+                    input_row[col] = 0
+            input_row = input_row[feature_columns]
+
+            prediction = model.predict(input_row)[0]
+            print(f"  -> RESULT: {prediction}\n")
+
+    except KeyboardInterrupt:
+        print("\nStopping...")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", required=True, help="path to a .pkl file from models/")
     parser.add_argument("--imu-port")
     parser.add_argument("--uwb-controller-port")
     parser.add_argument("--uwb-controlee-port")
-    parser.add_argument("--uwb-lab-tools-path", default="/Users/sairamvottikonda/UWB_lab/uwb-qorvo-tools")
+    parser.add_argument("--uwb-lab-tools-path",
+                         default=os.path.expanduser("~/UWB_lab/uwb-qorvo-tools"))
     parser.add_argument("--uwb-channel", type=int, default=5)
     parser.add_argument("--uwb-preamble-idx", type=int, default=11)
     parser.add_argument("--mmwave-port")
@@ -70,6 +118,10 @@ def main():
                               "raw single-window predictions can flicker between "
                               "classes, voting smooths that out at the cost of "
                               "slightly slower response to a real gesture change.")
+    parser.add_argument("--trigger-mode", action="store_true",
+                         help="Press Enter, capture for --capture-duration seconds, "
+                              "classify once -- instead of continuous streaming.")
+    parser.add_argument("--capture-duration", type=float, default=5.0)
     args = parser.parse_args()
 
     with open(args.model, "rb") as f:
@@ -88,6 +140,12 @@ def main():
 
     for reader in readers.values():
         reader.connect()
+
+    if args.trigger_mode:
+        run_trigger_mode(readers, model, feature_columns, args)
+        for reader in readers.values():
+            reader.close()
+        return
 
     print("Connected. Streaming live predictions (Ctrl+C to stop)...")
 
